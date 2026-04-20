@@ -29,6 +29,30 @@ FINSMES_FEEDS = [
         "name": "Crunchbase News",
         "url": "https://news.crunchbase.com/feed/",
     },
+    {
+        "name": "VentureBeat",
+        "url": "https://venturebeat.com/feed/",
+    },
+    {
+        "name": "Fortune — Entrepreneurship",
+        "url": "https://fortune.com/section/entrepreneurship/feed/",
+    },
+    {
+        "name": "Inc. — Startups & Funding",
+        "url": "https://www.inc.com/rss/",
+    },
+    {
+        "name": "Axios — Business",
+        "url": "https://api.axios.com/feed/",
+    },
+    {
+        "name": "BevNET — Funding",
+        "url": "https://www.bevnet.com/feed/",
+    },
+    {
+        "name": "Beauty Independent — Funding",
+        "url": "https://www.beautyindependent.com/feed/",
+    },
 ]
 
 # Round labels worth capturing

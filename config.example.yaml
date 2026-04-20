@@ -175,7 +175,7 @@ keywords:
 # ── RSS feed sources ──────────────────────────────────────────────────────────
 # Add / remove feeds here. event_types is informational only (for logging).
 rss_feeds:
-  # Food & Beverage
+  # ── Food & Beverage ───────────────────────────────────────────────────────────
   - name: "Food Dive"
     url: "https://www.fooddive.com/feeds/news/"
     event_types: ["product_launch", "funding", "retail_expansion"]
@@ -186,6 +186,42 @@ rss_feeds:
     event_types: ["product_launch", "funding", "retail_expansion"]
     category: "Food & Beverage"
 
+  - name: "FoodNavigator USA"
+    url: "https://www.foodnavigator-usa.com/rss/feed"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Prepared Foods"
+    url: "https://www.preparedfoods.com/rss/articles"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Beverage Daily"
+    url: "https://www.beveragedaily.com/rss/feed"
+    event_types: ["product_launch", "funding"]
+    category: "Beverage"
+
+  - name: "BevNET"
+    url: "https://www.bevnet.com/feed/"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Beverage"
+
+  - name: "Candy Industry"
+    url: "https://www.candyindustry.com/rss/articles"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Snack Food & Wholesale Bakery"
+    url: "https://www.snackandbakery.com/rss/articles"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Pet Food Industry"
+    url: "https://www.petfoodindustry.com/rss/articles"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Pet / Specialty"
+
+  # ── Retail / Grocery ──────────────────────────────────────────────────────────
   - name: "Grocery Dive"
     url: "https://www.grocerydive.com/feeds/news/"
     event_types: ["retail_expansion", "product_launch"]
@@ -196,12 +232,32 @@ rss_feeds:
     event_types: ["retail_expansion", "product_launch"]
     category: "Retail / Grocery"
 
-  - name: "Beverage Daily"
-    url: "https://www.beveragedaily.com/rss/feed"
-    event_types: ["product_launch", "funding"]
-    category: "Beverage"
+  - name: "Supermarket News"
+    url: "https://www.supermarketnews.com/rss/articles"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
 
-  # Health, Beauty & Wellness
+  - name: "Retail Dive"
+    url: "https://www.retaildive.com/feeds/news/"
+    event_types: ["retail_expansion", "product_launch", "funding"]
+    category: "Retail / Grocery"
+
+  - name: "Winsight Grocery Business"
+    url: "https://www.winsightgrocerybusiness.com/rss/articles"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
+
+  - name: "Convenience Store News"
+    url: "https://csnews.com/rss.xml"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
+
+  - name: "Chain Store Age"
+    url: "https://chainstoreage.com/rss.xml"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
+
+  # ── Health, Beauty & Wellness ─────────────────────────────────────────────────
   - name: "Beauty Independent"
     url: "https://www.beautyindependent.com/feed/"
     event_types: ["product_launch", "funding"]
@@ -210,6 +266,26 @@ rss_feeds:
   - name: "Drug Store News"
     url: "https://drugstorenews.com/rss.xml"
     event_types: ["retail_expansion", "product_launch"]
+    category: "Health & Beauty"
+
+  - name: "CosmeticsDesign USA"
+    url: "https://www.cosmeticsdesign-usa.com/rss/feed"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Health & Beauty"
+
+  - name: "Happi — Household & Personal Products"
+    url: "https://www.happi.com/rss/articles"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Health & Beauty"
+
+  - name: "Glossy"
+    url: "https://www.glossy.co/feed/"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Health & Beauty"
+
+  - name: "WWD — Beauty"
+    url: "https://wwd.com/beauty-industry-news/feed/"
+    event_types: ["product_launch", "funding"]
     category: "Health & Beauty"
 
   - name: "Natural Products Insider"
@@ -222,7 +298,12 @@ rss_feeds:
     event_types: ["product_launch", "funding"]
     category: "Supplements & Wellness"
 
-  # DTC / Omnichannel
+  - name: "Nutritional Outlook"
+    url: "https://www.nutritionaloutlook.com/rss/articles"
+    event_types: ["product_launch", "funding"]
+    category: "Supplements & Wellness"
+
+  # ── DTC / Omnichannel ─────────────────────────────────────────────────────────
   - name: "Modern Retail"
     url: "https://www.modernretail.co/feed/"
     event_types: ["retail_expansion", "product_launch", "funding"]
@@ -233,10 +314,30 @@ rss_feeds:
     event_types: ["retail_expansion", "product_launch"]
     category: "DTC / Retail"
 
-  # Press releases — broadest coverage
+  - name: "Digiday — Retail"
+    url: "https://digiday.com/tag/retail/feed/"
+    event_types: ["retail_expansion", "product_launch", "funding"]
+    category: "DTC / Retail"
+
+  # ── Press Releases — broadest coverage ───────────────────────────────────────
   - name: "BusinessWire — Consumer Products"
     url: "https://feed.businesswire.com/rss/home/?rss=G22"
     event_types: ["product_launch", "funding", "exec_hire", "retail_expansion"]
+    category: "Press Releases"
+
+  - name: "BusinessWire — Food & Beverage"
+    url: "https://feed.businesswire.com/rss/home/?rss=G16"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Press Releases"
+
+  - name: "BusinessWire — Health & Wellness"
+    url: "https://feed.businesswire.com/rss/home/?rss=G17"
+    event_types: ["product_launch", "funding", "exec_hire"]
+    category: "Press Releases"
+
+  - name: "BusinessWire — Retail"
+    url: "https://feed.businesswire.com/rss/home/?rss=G25"
+    event_types: ["retail_expansion", "product_launch", "exec_hire"]
     category: "Press Releases"
 
   - name: "PR Newswire"
@@ -249,61 +350,132 @@ rss_feeds:
     event_types: ["product_launch", "funding", "exec_hire"]
     category: "Press Releases"
 
+  - name: "EIN Presswire — Consumer Goods"
+    url: "https://www.einpresswire.com/rss/consumer-goods/"
+    event_types: ["product_launch", "funding", "exec_hire", "retail_expansion"]
+    category: "Press Releases"
+
+  - name: "AccessWire"
+    url: "https://www.accesswire.com/rss/news"
+    event_types: ["product_launch", "funding", "exec_hire"]
+    category: "Press Releases"
+
 # ── Google News queries (by event type) ──────────────────────────────────────
 google_news_queries:
   product_launch:
+    # Food & Beverage
     - '"new food brand" launch US'
     - '"new beverage brand" launch US'
     - "emerging food startup launches US market"
     - "natural food brand launch US grocery"
     - "functional beverage brand launch"
     - "plant-based food brand launch US"
+    - "snack brand launch US retail"
+    - "artisan food brand launches US"
+    - "specialty food brand launch"
+    - "pet food brand launch US"
+    - "new pet food brand US market"
+    # Health, Beauty & Wellness
     - '"new supplement brand" launch US'
     - "health and wellness brand launch US"
     - "clean beauty brand launch US"
     - "personal care brand launch direct to consumer"
+    - "skincare brand launch US DTC"
+    - "haircare brand launch US retail"
+    - "new wellness brand launch United States"
+    - "OTC health brand launches US"
+    # Home & Household
+    - "home cleaning brand launch US"
+    - "household goods brand launch DTC"
+    - "eco-friendly home brand launch US"
+    # DTC / General CPG
     - "challenger consumer brand launch US"
     - "DTC brand launch consumer goods"
+    - "indie brand launch US CPG"
+    - "founder-led brand launch US market"
 
   retail_expansion:
+    # Grocery
     - "DTC brand enters Whole Foods"
     - "direct to consumer brand launches Target"
     - "DTC brand Walmart retail launch"
     - "consumer brand Costco launch"
+    - "DTC brand enters Kroger"
+    - "DTC brand enters Sprouts"
+    - "DTC brand enters Publix"
     - "DTC brand enters grocery retail US"
+    - "brand launches in Ulta Beauty"
+    - "brand launches in Sephora"
+    - "brand enters CVS retail"
+    - "brand enters Walgreens retail"
+    # Distribution
     - "emerging brand retail distribution deal"
     - "DTC brand wholesale expansion US"
     - "consumer brand national distribution deal"
     - "digital native brand retail launch US"
     - "food brand omnichannel expansion US"
+    - "brand expands into brick and mortar"
+    - "DTC brand signs distribution agreement"
+    - "pet brand enters PetSmart retail"
+    - "pet brand enters Petco retail"
 
   funding:
+    # Food & Beverage
     - "food beverage brand Series A funding"
-    - "health beauty startup Series A funding"
     - "CPG brand Series B funding round"
-    - "supplement brand raises venture capital"
     - "natural food brand funding round"
+    - "snack brand raises funding"
+    - "beverage startup raises Series A"
+    - "pet food brand raises funding"
+    - "functional food brand investment"
+    # Health & Beauty
+    - "health beauty startup Series A funding"
+    - "supplement brand raises venture capital"
+    - "skincare brand raises funding"
+    - "wellness brand venture capital investment"
+    - "personal care brand Series A"
+    # Home / Household
+    - "home goods CPG brand raises funding"
+    - "cleaning brand raises venture capital"
+    # DTC / General CPG
     - "consumer goods startup raises million Series A"
     - "DTC brand Series A funding"
     - "personal care brand raises funding"
-    - "wellness brand venture capital investment"
     - "CPG company private equity minority investment"
     - "food brand private equity growth investment"
+    - "indie CPG brand raises seed round"
+    - "challenger brand secures growth investment"
 
   exec_hire:
+    # VP / SVP Supply Chain
     - '"VP supply chain" food beverage hired'
     - '"VP supply chain" health beauty appointed'
+    - '"SVP supply chain" CPG brand named'
+    - '"VP of supply chain" consumer goods'
+    # Director Supply Chain / Operations
     - '"Director supply chain" consumer goods named'
     - '"Director of operations" CPG brand appointed'
+    - '"Director of supply chain" food brand'
+    - '"Director of logistics" consumer goods'
+    # Head of
     - '"Head of supply chain" consumer brand'
+    - '"Head of operations" food beverage'
+    - '"Head of fulfillment" DTC brand'
+    - '"Head of logistics" CPG company'
+    # C-Suite
     - '"Chief Operations Officer" food beverage brand'
     - '"COO" consumer goods startup appointed'
+    - '"Chief Supply Chain Officer" CPG'
+    # Procurement / Logistics
     - '"VP procurement" food beverage company'
     - '"VP logistics" consumer goods brand hired'
     - '"Director of fulfillment" DTC brand'
     - '"VP operations" health beauty company'
+    # General
     - "new operations leader CPG brand hired"
     - "supply chain executive joins food beverage company"
+    - "operations executive appointed consumer goods startup"
+    - "logistics leader joins emerging CPG brand"
 
 # ── Email alerts ──────────────────────────────────────────────────────────────
 # Credentials are injected from environment variables at runtime.
