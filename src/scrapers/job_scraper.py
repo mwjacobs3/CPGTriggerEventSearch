@@ -3,9 +3,10 @@ Job/exec-hire scraper via BusinessWire and PR Newswire press releases.
 
 Rather than scraping job boards (which block bots), this scraper monitors
 the press-release wire services for exec appointment announcements — the
-same signal, but from a more reliable source.  Filters aggressively for
-CPG ops/supply-chain titles (VP Supply Chain, COO, Director of Operations,
-VP Procurement, Head of Logistics, etc.).
+same signal, but from a more reliable source.  Filters for the DOSS ICP:
+supply-chain / operations leaders (VP Supply Chain, COO, Director of
+Operations, VP Procurement, Head of Logistics), plus founder-led CPG
+brands where the Founder / Founder & CEO is the operational decision-maker.
 """
 
 from __future__ import annotations
@@ -53,24 +54,44 @@ PRESS_RELEASE_FEEDS = [
     },
 ]
 
-# Executive titles that are high-value DOSS prospects
+# DOSS ICP titles: operational decision-makers at mid-market / founder-led CPG brands.
 EXEC_TITLE_KEYWORDS = [
-    "chief supply chain", "chief operations", "chief operating", "coo ", " cso ",
+    # C-suite ops / supply chain
+    "chief supply chain", "chief operations", "chief operating",
+    " coo ", " csco ", " cpo ",
+    # Founder-led brands (founder IS the ops buyer at sub-$50M CPG)
+    "founder and ceo", "founder & ceo", "founder/ceo", "founder, ceo",
+    "co-founder and ceo", "co-founder & ceo", "cofounder and ceo",
+    "president and ceo", "president & ceo",
+    " founder ", "co-founder", "cofounder",
+    # VP / SVP / EVP — Supply Chain
     "vp supply chain", "vp of supply chain",
+    "svp supply chain", "svp of supply chain",
+    "evp supply chain", "evp of supply chain",
+    "vice president supply chain", "vice president of supply chain",
+    "senior vice president supply chain",
+    # VP / SVP / EVP — Operations
     "vp operations", "vp of operations",
+    "svp operations", "svp of operations",
+    "evp operations", "evp of operations",
+    "vice president operations", "vice president of operations",
+    "senior vice president operations",
+    # VP — Logistics / Procurement / Fulfillment
     "vp logistics", "vp of logistics",
     "vp procurement", "vp of procurement",
-    "vice president supply chain", "vice president operations",
-    "vice president logistics", "vice president procurement",
+    "vp fulfillment", "vp of fulfillment",
+    "vice president logistics", "vice president of logistics",
+    "vice president procurement", "vice president of procurement",
+    # Director
     "director supply chain", "director of supply chain",
     "director operations", "director of operations",
     "director logistics", "director of logistics",
     "director procurement", "director of procurement",
     "director fulfillment", "director of fulfillment",
+    # Head of
     "head of supply chain", "head of operations",
     "head of logistics", "head of fulfillment",
-    "svp supply chain", "svp operations",
-    "evp supply chain", "evp operations",
+    "head of procurement",
 ]
 
 APPOINTMENT_VERBS = [

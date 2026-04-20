@@ -157,7 +157,7 @@ Every query is expanded to a Google News RSS feed. Grouped by event type:
 - **Product Launch** — 25+ queries across Food & Beverage, Health & Beauty, Home & Household, DTC / General CPG
 - **Retail Expansion** — 20+ queries for DTC → retail (Whole Foods, Target, Walmart, Costco, Kroger, Sprouts, Publix, Ulta, Sephora, CVS, Walgreens, PetSmart, Petco) + distribution deals
 - **Funding** — 20+ queries for Series A/B, PE minority investments, seed rounds across F&B, Health & Beauty, Home, DTC
-- **Exec Hire** — 20+ queries for VP/SVP/Director/Head of Supply Chain, Operations, Procurement, Logistics, Fulfillment, COO, CSCO
+- **Exec Hire** — 25+ queries for DOSS ICP roles: VP/SVP/Director/Head of Supply Chain, Operations, Procurement, Logistics, Fulfillment, COO, CSCO, **plus Founder / Co-Founder / Founder & CEO** at founder-led CPG brands (where the founder is the operational decision-maker)
 
 ### 3. Funding-specific RSS (`FinSMEsScraper`, 9 feeds, hard-coded)
 
@@ -166,9 +166,15 @@ FinSMEs · TechCrunch Startups · Crunchbase News · VentureBeat · Fortune Entr
 ### 4. Exec-hire press wires (`JobScraper`, BusinessWire + PR Newswire)
 
 Monitors press-release wires for exec appointment announcements, then filters
-aggressively for CPG ops/supply-chain titles (VP Supply Chain, COO, Director
-of Operations, VP Procurement, Head of Logistics, etc.). Press-release wires
-are more reliable than scraping job boards (which block bots).
+for the DOSS ICP:
+
+- **Ops / supply-chain leaders** — VP / SVP / EVP / Director / Head of
+  Supply Chain, Operations, Procurement, Logistics, Fulfillment
+- **C-suite** — COO, CSCO, Chief Operations / Supply Chain Officer
+- **Founder-led brands** — Founder, Co-Founder, Founder & CEO, President & CEO
+  (at sub-$50M CPG, the founder IS the ops buyer)
+
+Press-release wires are more reliable than scraping job boards (which block bots).
 
 ## Lead triage workflow
 
