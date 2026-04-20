@@ -16,19 +16,24 @@ Customer, Out of Alignment, Not Relevant).
 ## Architecture
 
 ```
-┌───────────────────┐       ┌──────────────────┐       ┌────────────────┐
-│  GitHub Actions   │──┐    │                  │       │                │
-│  cron: 0 */4 * *  │  ├──▶ │  main.py         │──────▶│   Supabase     │
-└───────────────────┘  │    │  (searchers +    │       │   (events +    │
-                       │    │   Supabase sync) │       │   source_status)│
-┌───────────────────┐  │    │                  │       └───────┬────────┘
-│  Local CLI /      │──┘    └────────┬─────────┘               │
-│  python main.py   │                │                         │
-└───────────────────┘                ▼                         ▼
-                             ┌──────────────┐         ┌────────────────┐
-                             │  Email       │         │  dashboard.py  │
-                             │  digest      │         │  (Streamlit)   │
-                             └──────────────┘         └────────────────┘
+┌────────────────────────┐                 ┌──────────────────────────────┐
+│  GitHub Actions cron   │──┐              │       src.main               │
+│  0 */4 * * *           │  │              │   ┌────────────────────┐     │
+└────────────────────────┘  │              │   │ GoogleNewsScraper  │──┐  │
+                            ├─────────────▶│   │ RSSFeedScraper     │  │  │
+┌────────────────────────┐  │              │   │ FinSMEsScraper     │──┼──┼──▶ Supabase
+│  Local CLI             │──┘              │   │ JobScraper         │  │  │    ├─ events
+│  python -m src.main    │                 │   └────────────────────┘  │  │    └─ source_status
+└────────────────────────┘                 │            │              │  │
+                                           │   ICP filter + dedupe ◀───┘  │
+                                           └────────────┬─────────────────┘
+                                                        │
+                                       ┌────────────────┴─────────────────┐
+                                       ▼                                  ▼
+                               ┌──────────────┐                  ┌────────────────┐
+                               │ src.alerts   │                  │  dashboard.py  │
+                               │ email digest │                  │  (Streamlit)   │
+                               └──────────────┘                  └────────────────┘
 ```
 
 ## Quick start
@@ -129,6 +134,47 @@ queries:
 
 Edit, commit, push — the next cron run picks them up. Every query is expanded
 to a Google News RSS feed (zero API keys needed) and, if configured, NewsAPI.
+
+## Sources monitored
+
+Every 4-hour run pulls from **four** scrapers. All sources are filtered by the
+DOSS ICP rules in `config.yaml` (US-only, mid-market, excludes public mega-caps).
+
+### 1. Trade-press RSS (`RSSFeedScraper`, 37 feeds from `config.yaml`)
+
+| Category | Feeds |
+|---|---|
+| **Food & Beverage** | Food Dive · Food Business News · FoodNavigator USA · Prepared Foods · Beverage Daily · BevNET · Candy Industry · Snack Food & Wholesale Bakery · Pet Food Industry |
+| **Retail / Grocery** | Grocery Dive · Progressive Grocer · Supermarket News · Retail Dive · Winsight Grocery Business · Convenience Store News · Chain Store Age |
+| **Health, Beauty & Wellness** | Beauty Independent · Drug Store News · CosmeticsDesign USA · Happi · Glossy · WWD Beauty · Natural Products Insider · Nutraceuticals World · Nutritional Outlook |
+| **DTC / Omnichannel** | Modern Retail · Retail Brew · Digiday Retail |
+| **Press Releases (broad)** | BusinessWire (Consumer Products / Food & Bev / Health & Wellness / Retail) · PR Newswire · GlobeNewswire Consumer · EIN Presswire Consumer Goods · AccessWire |
+
+### 2. Google News (`GoogleNewsScraper`, ~100 queries from `config.yaml`)
+
+Every query is expanded to a Google News RSS feed. Grouped by event type:
+
+- **Product Launch** — 25+ queries across Food & Beverage, Health & Beauty, Home & Household, DTC / General CPG
+- **Retail Expansion** — 20+ queries for DTC → retail (Whole Foods, Target, Walmart, Costco, Kroger, Sprouts, Publix, Ulta, Sephora, CVS, Walgreens, PetSmart, Petco) + distribution deals
+- **Funding** — 20+ queries for Series A/B, PE minority investments, seed rounds across F&B, Health & Beauty, Home, DTC
+- **Exec Hire** — 25+ queries for DOSS ICP roles: VP/SVP/Director/Head of Supply Chain, Operations, Procurement, Logistics, Fulfillment, COO, CSCO, **plus Founder / Co-Founder / Founder & CEO** at founder-led CPG brands (where the founder is the operational decision-maker)
+
+### 3. Funding-specific RSS (`FinSMEsScraper`, 9 feeds, hard-coded)
+
+FinSMEs · TechCrunch Startups · Crunchbase News · VentureBeat · Fortune Entrepreneurship · Inc. Startups & Funding · Axios Business · BevNET Funding · Beauty Independent Funding
+
+### 4. Exec-hire press wires (`JobScraper`, BusinessWire + PR Newswire)
+
+Monitors press-release wires for exec appointment announcements, then filters
+for the DOSS ICP:
+
+- **Ops / supply-chain leaders** — VP / SVP / EVP / Director / Head of
+  Supply Chain, Operations, Procurement, Logistics, Fulfillment
+- **C-suite** — COO, CSCO, Chief Operations / Supply Chain Officer
+- **Founder-led brands** — Founder, Co-Founder, Founder & CEO, President & CEO
+  (at sub-$50M CPG, the founder IS the ops buyer)
+
+Press-release wires are more reliable than scraping job boards (which block bots).
 
 ## Lead triage workflow
 

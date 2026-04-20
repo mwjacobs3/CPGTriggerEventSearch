@@ -152,12 +152,14 @@ keywords:
     - "promotes"
     - "joins as"
     - "appointed as"
+    # Supply chain / operations titles
     - "vp supply chain"
     - "vice president supply chain"
     - "vp operations"
     - "vice president operations"
     - "vp logistics"
     - "vp procurement"
+    - "vp fulfillment"
     - "chief supply chain"
     - "chief operations"
     - "chief operating"
@@ -166,11 +168,25 @@ keywords:
     - "director supply chain"
     - "director of operations"
     - "director logistics"
+    - "director procurement"
+    - "director of fulfillment"
     - "head of supply chain"
     - "head of operations"
     - "head of fulfillment"
+    - "head of procurement"
     - "svp supply chain"
     - "svp operations"
+    # Founder-led CPG brands (founder IS the ops buyer at sub-$50M)
+    - "founder and ceo"
+    - "founder & ceo"
+    - "founder/ceo"
+    - "co-founder and ceo"
+    - "co-founder & ceo"
+    - "president and ceo"
+    - "founder of"
+    - "co-founder of"
+    - "founder"
+    - "co-founder"
 
 # ── RSS feed sources ──────────────────────────────────────────────────────────
 # Add / remove feeds here. event_types is informational only (for logging).
@@ -471,6 +487,15 @@ google_news_queries:
     - '"VP logistics" consumer goods brand hired'
     - '"Director of fulfillment" DTC brand'
     - '"VP operations" health beauty company'
+    # Founder-led CPG brands (founder IS the ops buyer)
+    - '"founder and CEO" CPG brand launches'
+    - '"founder & CEO" food beverage brand'
+    - '"co-founder" consumer goods startup'
+    - '"founder of" health beauty brand'
+    - '"founder CEO" emerging CPG brand'
+    - "founder-led CPG brand raises"
+    - "founder-led food beverage brand"
+    - "founder-led DTC brand"
     # General
     - "new operations leader CPG brand hired"
     - "supply chain executive joins food beverage company"
