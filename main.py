@@ -3,28 +3,36 @@ CPGTriggerEventSearch — main entry point.
 
 Usage:
     python main.py              # run once immediately
-    python main.py --schedule   # run on schedule defined in .env (default: daily 07:00)
-    python main.py --no-email   # run once, print to console only
+    python main.py --schedule   # run on schedule defined in .env (default: every 4 hours)
+    python main.py --no-email   # run once, skip email
+    python main.py --no-supabase  # run once, skip Supabase writes (local-only)
 
 Trigger event categories monitored:
   1. New CPG / product launches going to market
   2. PE / VC funding events in CPG & consumer goods
   3. New ops, supply chain, and procurement exec hires
+
+In production, this is invoked every 4 hours by .github/workflows/scraper.yml.
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from datetime import datetime
 
 import schedule
 
 from alerts import EmailSender
-from config import RUN_SCHEDULE, RUN_TIME, USE_AI_FILTER
+from config import RUN_SCHEDULE, RUN_TIME, SUPABASE_URL, USE_AI_FILTER
 from searchers import ExecHireSearcher, FundingSearcher, ProductLaunchSearcher
-from utils import Deduplicator, format_results_csv, print_digest
+from utils import (
+    Deduplicator,
+    format_results_csv,
+    print_digest,
+    update_source_status,
+    upsert_events,
+)
 
 SEARCHERS = [
     ProductLaunchSearcher,
@@ -33,24 +41,46 @@ SEARCHERS = [
 ]
 
 
-def run_search(send_email: bool = True) -> None:
+def run_search(send_email: bool = True, use_supabase: bool = True) -> None:
     print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting CPG trigger event search…")
 
     all_results = []
     for SearcherClass in SEARCHERS:
         searcher = SearcherClass()
         print(f"  → Searching: {searcher.category}")
-        results = searcher.run()
-        print(f"     {len(results)} raw results")
-        all_results.extend(results)
+        try:
+            results = searcher.run()
+            print(f"     {len(results)} raw results")
+            all_results.extend(results)
+            if use_supabase and SUPABASE_URL:
+                update_source_status(
+                    source_name=searcher.category,
+                    source_type="google_news",
+                    status="success",
+                    events_found=len(results),
+                )
+        except Exception as exc:
+            print(f"     ERROR: {exc}")
+            if use_supabase and SUPABASE_URL:
+                update_source_status(
+                    source_name=searcher.category,
+                    source_type="google_news",
+                    status="error",
+                    events_found=0,
+                    error=str(exc),
+                )
 
     print(f"\n  Total raw results: {len(all_results)}")
 
-    dedup = Deduplicator()
-    new_results = dedup.filter_new(all_results)
-    dedup.save()
-
-    print(f"  New (unseen) results: {len(new_results)}")
+    # Deduplication + persistence
+    if use_supabase and SUPABASE_URL:
+        new_results = upsert_events(all_results)
+        print(f"  New (unseen) results via Supabase: {len(new_results)}")
+    else:
+        dedup = Deduplicator()
+        new_results = dedup.filter_new(all_results)
+        dedup.save()
+        print(f"  New (unseen) results via local JSON: {len(new_results)}")
 
     if USE_AI_FILTER and new_results:
         new_results = _ai_relevance_filter(new_results)
@@ -69,9 +99,10 @@ def run_search(send_email: bool = True) -> None:
 
 
 def _ai_relevance_filter(results):
-    """Use Claude to score each result and keep only high-relevance ones."""
+    """Use Claude to score each result; keep only high-relevance ones."""
     try:
         import anthropic
+
         from config import AI_RELEVANCE_THRESHOLD, ANTHROPIC_API_KEY
 
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -80,9 +111,9 @@ def _ai_relevance_filter(results):
         for r in results:
             prompt = (
                 "You are a B2B sales intelligence assistant. "
-                "Score the following news headline and summary on a scale of 0.0–1.0 for "
-                "relevance to selling supply chain / operations software (DOSS) to CPG "
-                "and consumer products companies. Only respond with a number.\n\n"
+                "Score the following news headline and summary on a 0.0–1.0 scale "
+                "for relevance to selling supply chain / operations software (DOSS) "
+                "to CPG and consumer products companies. Respond with only a number.\n\n"
                 f"Category: {r.category}\n"
                 f"Title: {r.title}\n"
                 f"Summary: {r.summary[:300]}\n"
@@ -107,31 +138,27 @@ def _ai_relevance_filter(results):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="CPG Trigger Event Search")
-    parser.add_argument(
-        "--schedule",
-        action="store_true",
-        help="Run on schedule defined in .env instead of once",
-    )
-    parser.add_argument(
-        "--no-email",
-        action="store_true",
-        help="Suppress email sending; print results to console only",
-    )
+    parser.add_argument("--schedule", action="store_true", help="Run on schedule")
+    parser.add_argument("--no-email", action="store_true", help="Suppress email")
+    parser.add_argument("--no-supabase", action="store_true", help="Skip Supabase writes")
     args = parser.parse_args()
 
     send_email = not args.no_email
+    use_supabase = not args.no_supabase
 
     if not args.schedule:
-        run_search(send_email=send_email)
+        run_search(send_email=send_email, use_supabase=use_supabase)
         return
 
     print(f"[Scheduler] Running on '{RUN_SCHEDULE}' schedule (time: {RUN_TIME})")
 
     def job():
-        run_search(send_email=send_email)
+        run_search(send_email=send_email, use_supabase=use_supabase)
 
     if RUN_SCHEDULE == "hourly":
         schedule.every().hour.do(job)
+    elif RUN_SCHEDULE == "every_4_hours":
+        schedule.every(4).hours.do(job)
     elif RUN_SCHEDULE == "weekly":
         schedule.every().monday.at(RUN_TIME).do(job)
     else:  # daily

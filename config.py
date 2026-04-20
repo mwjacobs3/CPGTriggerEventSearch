@@ -4,9 +4,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")          # newsapi.org (optional)
-SERP_API_KEY = os.getenv("SERP_API_KEY", "")          # serpapi.com (optional)
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")           # newsapi.org (optional)
+SERP_API_KEY = os.getenv("SERP_API_KEY", "")           # serpapi.com (optional)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "") # Claude relevance filter
+
+# ── Supabase ──────────────────────────────────────────────────────────────────
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+# Service-role key: used by the sync/scraper job (bypasses RLS)
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+# Anon key: used by the Streamlit dashboard (read-only via RLS)
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 # ── Email Settings ────────────────────────────────────────────────────────────
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
@@ -20,11 +27,11 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 
 # ── Schedule ──────────────────────────────────────────────────────────────────
-# Cron-style: "daily" | "weekly" | "hourly"
-RUN_SCHEDULE = os.getenv("RUN_SCHEDULE", "daily")
+# "every_4_hours" | "hourly" | "daily" | "weekly"
+RUN_SCHEDULE = os.getenv("RUN_SCHEDULE", "every_4_hours")
 RUN_TIME = os.getenv("RUN_TIME", "07:00")  # 24h HH:MM for daily/weekly
 
-# ── Dedup Storage ─────────────────────────────────────────────────────────────
+# ── Local Fallback Storage (used when Supabase is not configured) ─────────────
 SEEN_RESULTS_FILE = os.getenv("SEEN_RESULTS_FILE", "data/seen_results.json")
 RESULTS_OUTPUT_FILE = os.getenv("RESULTS_OUTPUT_FILE", "data/results.csv")
 
@@ -66,8 +73,12 @@ EXEC_HIRE_QUERIES = [
     "new supply chain executive consumer brand",
 ]
 
-# ── Relevance Filter Keywords (any match = keep result) ───────────────────────
+# ── Event Type Identifiers (match dashboard + DB) ─────────────────────────────
+EVENT_TYPE_PRODUCT_LAUNCH = "product_launch"
+EVENT_TYPE_FUNDING = "funding"
+EVENT_TYPE_EXEC_HIRE = "exec_hire"
 
+# ── Relevance Filter Keywords ─────────────────────────────────────────────────
 CPG_RELEVANCE_KEYWORDS = [
     "cpg", "consumer packaged goods", "consumer goods", "fmcg",
     "food", "beverage", "grocery", "retail", "brand", "product launch",
@@ -78,6 +89,5 @@ CPG_RELEVANCE_KEYWORDS = [
 ]
 
 # ── AI Relevance Filter ───────────────────────────────────────────────────────
-# Set to True to use Claude to score/filter results (requires ANTHROPIC_API_KEY)
 USE_AI_FILTER = os.getenv("USE_AI_FILTER", "false").lower() == "true"
 AI_RELEVANCE_THRESHOLD = float(os.getenv("AI_RELEVANCE_THRESHOLD", "0.7"))

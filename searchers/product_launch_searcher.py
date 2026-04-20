@@ -1,4 +1,9 @@
-from config import NEWS_API_KEY, PRODUCT_LAUNCH_QUERIES, SERP_API_KEY
+from config import (
+    EVENT_TYPE_PRODUCT_LAUNCH,
+    NEWS_API_KEY,
+    PRODUCT_LAUNCH_QUERIES,
+    SERP_API_KEY,
+)
 from .base_searcher import BaseSearcher
 
 
@@ -14,6 +19,10 @@ class ProductLaunchSearcher(BaseSearcher):
     @property
     def category(self) -> str:
         return "New CPG / Product Launch"
+
+    @property
+    def event_type(self) -> str:
+        return EVENT_TYPE_PRODUCT_LAUNCH
 
     @property
     def queries(self) -> list[str]:
