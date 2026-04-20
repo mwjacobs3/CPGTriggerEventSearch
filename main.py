@@ -8,9 +8,10 @@ Usage:
     python main.py --no-supabase  # run once, skip Supabase writes (local-only)
 
 Trigger event categories monitored:
-  1. New CPG / product launches going to market
-  2. PE / VC funding events in CPG & consumer goods
-  3. New ops, supply chain, and procurement exec hires
+  1. New CPG / product launches (Food, Bev, Health, Beauty)
+  2. DTC → Retail expansion (biggest ops complexity spike)
+  3. PE / VC funding events (Series A/B sweet spot)
+  4. New ops, supply chain, and procurement exec hires
 
 In production, this is invoked every 4 hours by .github/workflows/scraper.yml.
 """
@@ -24,8 +25,13 @@ from datetime import datetime
 import schedule
 
 from alerts import EmailSender
-from config import RUN_SCHEDULE, RUN_TIME, SUPABASE_URL, USE_AI_FILTER
-from searchers import ExecHireSearcher, FundingSearcher, ProductLaunchSearcher
+from config import DOSS_ICP_CONTEXT, RUN_SCHEDULE, RUN_TIME, SUPABASE_URL, USE_AI_FILTER
+from searchers import (
+    ExecHireSearcher,
+    FundingSearcher,
+    ProductLaunchSearcher,
+    RetailExpansionSearcher,
+)
 from utils import (
     Deduplicator,
     format_results_csv,
@@ -36,6 +42,7 @@ from utils import (
 
 SEARCHERS = [
     ProductLaunchSearcher,
+    RetailExpansionSearcher,
     FundingSearcher,
     ExecHireSearcher,
 ]
@@ -110,13 +117,17 @@ def _ai_relevance_filter(results):
 
         for r in results:
             prompt = (
-                "You are a B2B sales intelligence assistant. "
-                "Score the following news headline and summary on a 0.0–1.0 scale "
-                "for relevance to selling supply chain / operations software (DOSS) "
-                "to CPG and consumer products companies. Respond with only a number.\n\n"
-                f"Category: {r.category}\n"
+                "You are a B2B sales intelligence assistant helping identify leads for DOSS.\n\n"
+                f"{DOSS_ICP_CONTEXT}\n\n"
+                "Score the following news item 0.0–1.0 for how well the company described "
+                "matches DOSS's ideal customer profile. High scores (0.8+) for mid-market "
+                "CPG/F&B/Health-Beauty companies with supply chain complexity. "
+                "Low scores for mega enterprises, non-CPG industries, or very early startups. "
+                "Respond with only a single decimal number.\n\n"
+                f"Trigger type: {r.category}\n"
                 f"Title: {r.title}\n"
-                f"Summary: {r.summary[:300]}\n"
+                f"Company: {r.company_name or 'unknown'}\n"
+                f"Summary: {r.summary[:400]}\n"
             )
             message = client.messages.create(
                 model="claude-sonnet-4-6",

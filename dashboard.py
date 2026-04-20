@@ -72,6 +72,7 @@ st.markdown(
     .badge-launch  { background: #dcfce7; color: #166534; }
     .badge-funding { background: #fef3c7; color: #92400e; }
     .badge-exec    { background: #ede9fe; color: #5b21b6; }
+    .badge-retail  { background: #dbeafe; color: #1e40af; }
     .badge-other   { background: #f3f4f6; color: #374151; }
 
     .status-badge {
@@ -150,6 +151,15 @@ EVENT_TYPES = {
         "icon": "👤",
         "badge_class": "badge-exec",
         "bg_color": "#ede9fe",
+    },
+    "retail_expansion": {
+        "label": "Retail",
+        "full_label": "DTC → Retail Expansion",
+        "color": "#3b82f6",
+        "gradient": "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+        "icon": "🏪",
+        "badge_class": "badge-retail",
+        "bg_color": "#dbeafe",
     },
     "other": {
         "label": "Other",
@@ -433,8 +443,8 @@ def main() -> None:
     st.markdown(
         """
         <div class="main-header">
-            <h1>🛒 CPG Trigger Events</h1>
-            <p>Find CPG &amp; consumer products accounts to sell DOSS — track launches, funding, and ops hires</p>
+            <h1>🛒 CPG Trigger Events — DOSS ICP</h1>
+            <p>Mid-market Food &amp; Bev · Health &amp; Beauty · Consumer Goods — new launches, retail expansions, Series A/B funding, ops exec hires</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -479,14 +489,16 @@ def main() -> None:
     # Metrics
     type_counts = df["event_type"].value_counts().to_dict()
     new_count = len(df[df["lead_status"] == "NEW"])
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         render_metric_card("📊", len(df), "Total Signals", "#0ea5e9")
     with col2:
         render_metric_card("🆕", new_count, "New Leads", "#10b981")
     with col3:
-        render_metric_card("💰", type_counts.get("funding", 0), "PE/VC Funding", "#f59e0b")
+        render_metric_card("🏪", type_counts.get("retail_expansion", 0), "Retail Expansions", "#3b82f6")
     with col4:
+        render_metric_card("💰", type_counts.get("funding", 0), "PE/VC Funding", "#f59e0b")
+    with col5:
         render_metric_card("👤", type_counts.get("exec_hire", 0), "Ops Hires", "#8b5cf6")
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -515,17 +527,21 @@ def main() -> None:
         st.info("No new leads to review. Nice work!")
     else:
         n_launch  = len(new_df[new_df["event_type"] == "product_launch"])
+        n_retail  = len(new_df[new_df["event_type"] == "retail_expansion"])
         n_funding = len(new_df[new_df["event_type"] == "funding"])
         n_exec    = len(new_df[new_df["event_type"] == "exec_hire"])
 
-        tab_launch, tab_funding, tab_exec = st.tabs([
+        tab_launch, tab_retail, tab_funding, tab_exec = st.tabs([
             f"🚀 Launches ({n_launch})",
+            f"🏪 Retail Expansion ({n_retail})",
             f"💰 Funding ({n_funding})",
             f"👤 Ops Execs ({n_exec})",
         ])
 
         with tab_launch:
             render_event_section(new_df, "product_launch", EVENT_TYPES["product_launch"])
+        with tab_retail:
+            render_event_section(new_df, "retail_expansion", EVENT_TYPES["retail_expansion"])
         with tab_funding:
             render_event_section(new_df, "funding", EVENT_TYPES["funding"])
         with tab_exec:
