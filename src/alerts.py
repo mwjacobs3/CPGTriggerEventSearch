@@ -101,8 +101,8 @@ class AlertManager:
         raw_recipients  = email_cfg.get("recipient_emails") or []
         env_recips      = [r.strip() for r in os.environ.get("EMAIL_RECIPIENTS", "").split(",") if r.strip()]
         self.recipients = raw_recipients if raw_recipients else env_recips
-        self.smtp_host  = email_cfg.get("smtp_host") or os.environ.get("SMTP_HOST", "smtp.gmail.com")
-        self.smtp_port  = int(email_cfg.get("smtp_port") or os.environ.get("SMTP_PORT", "587"))
+        self.smtp_host  = email_cfg.get("smtp_host") or os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+        self.smtp_port  = int(email_cfg.get("smtp_port") or os.environ.get("SMTP_PORT") or "587")
 
     def send_alerts(self, events: list[TriggerEvent]) -> int:
         if not events:
@@ -134,14 +134,22 @@ class AlertManager:
         msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
 
+        print(f"  [Email] Connecting to {self.smtp_host}:{self.smtp_port} as {self.sender}")
         try:
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=30)
+            try:
                 server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(self.sender, self.password)
                 server.sendmail(self.sender, self.recipients, msg.as_string())
-            print(f"  [Email] Digest sent → {self.recipients} ({len(events)} events)")
-            return True
+                print(f"  [Email] Digest sent → {self.recipients} ({len(events)} events)")
+                return True
+            finally:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
         except Exception as exc:
             print(f"  [Email] Failed: {exc}")
             return False

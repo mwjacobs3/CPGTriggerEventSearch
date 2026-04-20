@@ -24,12 +24,32 @@ PRESS_RELEASE_FEEDS = [
         "url": "https://feed.businesswire.com/rss/home/?rss=G22",
     },
     {
+        "name": "BusinessWire — Food & Beverage",
+        "url": "https://feed.businesswire.com/rss/home/?rss=G16",
+    },
+    {
+        "name": "BusinessWire — Health & Wellness",
+        "url": "https://feed.businesswire.com/rss/home/?rss=G17",
+    },
+    {
+        "name": "BusinessWire — Retail",
+        "url": "https://feed.businesswire.com/rss/home/?rss=G25",
+    },
+    {
         "name": "PR Newswire — Consumer Goods",
         "url": "https://www.prnewswire.com/rss/news-releases-list.rss",
     },
     {
         "name": "GlobeNewswire — Consumer",
-        "url": "https://www.globenewswire.com/RssFeed/subjectCode/15",  # Consumer
+        "url": "https://www.globenewswire.com/RssFeed/subjectCode/15",
+    },
+    {
+        "name": "EIN Presswire — Consumer Goods",
+        "url": "https://www.einpresswire.com/rss/consumer-goods/",
+    },
+    {
+        "name": "AccessWire",
+        "url": "https://www.accesswire.com/rss/news",
     },
 ]
 

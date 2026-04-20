@@ -58,8 +58,12 @@ class TriggerEventMonitor:
         print(f"  CPG Trigger Event Search — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*60}")
 
-        max_age_hours = self.config.get("scraper", {}).get("max_age_hours", 72)
-        cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+        max_age_hours = self.config.get("scraper", {}).get("max_age_hours", 0)
+        cutoff = (
+            datetime.utcnow() - timedelta(hours=max_age_hours)
+            if max_age_hours
+            else None
+        )
 
         all_events: list[TriggerEvent] = []
 
@@ -88,16 +92,19 @@ class TriggerEventMonitor:
         new_events: list[TriggerEvent] = []
         skipped_old = 0
         for event in all_events:
-            pub = event.published_date
-            if pub and pub < cutoff:
-                skipped_old += 1
-                continue
+            if cutoff:
+                pub = event.published_date
+                if pub and pub < cutoff:
+                    skipped_old += 1
+                    continue
             if self.db.has_seen_url(event.url, event.title):
                 continue
             new_events.append(event)
 
+        age_note = f"  Too old (>{max_age_hours}h): {skipped_old}\n" if cutoff else ""
         print(f"\n  Total candidates : {len(all_events)}")
-        print(f"  Too old (>{max_age_hours}h): {skipped_old}")
+        if age_note:
+            print(age_note, end="")
         print(f"  New events       : {len(new_events)}")
 
         # Save + alert
