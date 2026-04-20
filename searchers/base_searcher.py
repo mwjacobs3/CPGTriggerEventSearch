@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 import urllib.parse
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 from typing import Any
 
 import feedparser
@@ -20,7 +20,9 @@ class SearchResult:
         source: str,
         published: str,
         category: str,
+        event_type: str,
         query: str,
+        company_name: str = "",
     ):
         self.title = title
         self.url = url
@@ -28,7 +30,9 @@ class SearchResult:
         self.source = source
         self.published = published
         self.category = category
+        self.event_type = event_type
         self.query = query
+        self.company_name = company_name
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,7 +42,9 @@ class SearchResult:
             "source": self.source,
             "published": self.published,
             "category": self.category,
+            "event_type": self.event_type,
             "query": self.query,
+            "company_name": self.company_name,
         }
 
     def __repr__(self) -> str:
@@ -59,7 +65,12 @@ class BaseSearcher(ABC):
     @property
     @abstractmethod
     def category(self) -> str:
-        """Human-readable category label for this searcher."""
+        """Human-readable category label."""
+
+    @property
+    @abstractmethod
+    def event_type(self) -> str:
+        """Machine ID matching EVENT_TYPE_* constants in config.py."""
 
     @property
     @abstractmethod
@@ -67,7 +78,6 @@ class BaseSearcher(ABC):
         """List of search query strings to run."""
 
     def run(self) -> list[SearchResult]:
-        """Execute all queries and return deduplicated, relevant results."""
         results: list[SearchResult] = []
         seen_urls: set[str] = set()
 
@@ -85,6 +95,8 @@ class BaseSearcher(ABC):
 
         return results
 
+    # ── Sources ───────────────────────────────────────────────────────────────
+
     def _fetch_google_news(self, query: str) -> list[SearchResult]:
         params = {
             "q": query,
@@ -97,16 +109,18 @@ class BaseSearcher(ABC):
             feed = feedparser.parse(url)
             results = []
             for entry in feed.entries[:10]:
-                published = entry.get("published", "")
+                title = entry.get("title", "")
                 results.append(
                     SearchResult(
-                        title=entry.get("title", ""),
+                        title=title,
                         url=entry.get("link", ""),
                         summary=self._strip_html(entry.get("summary", "")),
                         source=entry.get("source", {}).get("title", "Google News"),
-                        published=published,
+                        published=entry.get("published", ""),
                         category=self.category,
+                        event_type=self.event_type,
                         query=query,
+                        company_name=self._extract_company(title),
                     )
                 )
             return results
@@ -129,15 +143,18 @@ class BaseSearcher(ABC):
             articles = resp.json().get("articles", [])
             results = []
             for art in articles:
+                title = art.get("title") or ""
                 results.append(
                     SearchResult(
-                        title=art.get("title") or "",
+                        title=title,
                         url=art.get("url") or "",
                         summary=art.get("description") or "",
                         source=art.get("source", {}).get("name", "NewsAPI"),
                         published=art.get("publishedAt") or "",
                         category=self.category,
+                        event_type=self.event_type,
                         query=query,
+                        company_name=self._extract_company(title),
                     )
                 )
             return results
@@ -145,12 +162,43 @@ class BaseSearcher(ABC):
             print(f"[{self.category}] NewsAPI error for '{query}': {exc}")
             return []
 
+    # ── Filtering & extraction ────────────────────────────────────────────────
+
     def _is_relevant(self, result: SearchResult) -> bool:
-        """Keyword-based relevance check on title + summary."""
         text = f"{result.title} {result.summary}".lower()
         return any(kw in text for kw in CPG_RELEVANCE_KEYWORDS)
 
     @staticmethod
     def _strip_html(text: str) -> str:
-        import re
         return re.sub(r"<[^>]+>", "", text).strip()
+
+    @staticmethod
+    def _extract_company(title: str) -> str:
+        """
+        Best-effort company name extraction. Google News titles look like:
+          "Acme Foods raises $10M in Series A funding - TechCrunch"
+        We strip the trailing " - Source" and take the first noun-ish phrase.
+        """
+        if not title:
+            return ""
+        clean = re.sub(r"\s+-\s+[^-]+$", "", title)  # strip trailing " - Source"
+        clean = re.sub(r"\s+\|\s+[^|]+$", "", clean)  # strip trailing " | Source"
+
+        # Stop at first action verb — everything before is likely the company.
+        verbs = [
+            " raises ", " announces ", " launches ", " unveils ", " acquires ",
+            " hires ", " appoints ", " names ", " secures ", " closes ",
+            " taps ", " expands ", " partners ", " debuts ", " introduces ",
+            " nets ", " welcomes ", " promotes ", " invests ",
+        ]
+        lower = clean.lower()
+        cut = len(clean)
+        for v in verbs:
+            idx = lower.find(v)
+            if 0 < idx < cut:
+                cut = idx
+        company = clean[:cut].strip(" ,;:")
+        # Cap length — real names are short; long strings are likely headlines.
+        if len(company) > 80 or len(company) < 2:
+            return ""
+        return company

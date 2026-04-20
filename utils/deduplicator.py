@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 
 class Deduplicator:
     """
-    Persists a set of seen result fingerprints to disk so repeat runs
-    don't re-alert on the same articles.
+    Local JSON-backed dedup used when Supabase is not configured.
+    When Supabase IS configured, use utils.supabase_client.upsert_events
+    instead — it handles dedup server-side via primary key.
     """
 
     def __init__(self, storage_path: str = SEEN_RESULTS_FILE):

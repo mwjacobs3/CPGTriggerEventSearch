@@ -1,4 +1,9 @@
-from config import EXEC_HIRE_QUERIES, NEWS_API_KEY, SERP_API_KEY
+from config import (
+    EVENT_TYPE_EXEC_HIRE,
+    EXEC_HIRE_QUERIES,
+    NEWS_API_KEY,
+    SERP_API_KEY,
+)
 from .base_searcher import BaseSearcher
 
 
@@ -16,6 +21,10 @@ class ExecHireSearcher(BaseSearcher):
     @property
     def category(self) -> str:
         return "New Ops / Supply Chain Exec"
+
+    @property
+    def event_type(self) -> str:
+        return EVENT_TYPE_EXEC_HIRE
 
     @property
     def queries(self) -> list[str]:

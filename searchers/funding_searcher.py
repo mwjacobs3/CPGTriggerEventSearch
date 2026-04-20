@@ -1,4 +1,9 @@
-from config import FUNDING_QUERIES, NEWS_API_KEY, SERP_API_KEY
+from config import (
+    EVENT_TYPE_FUNDING,
+    FUNDING_QUERIES,
+    NEWS_API_KEY,
+    SERP_API_KEY,
+)
 from .base_searcher import BaseSearcher
 
 
@@ -15,6 +20,10 @@ class FundingSearcher(BaseSearcher):
     @property
     def category(self) -> str:
         return "PE / VC Funding"
+
+    @property
+    def event_type(self) -> str:
+        return EVENT_TYPE_FUNDING
 
     @property
     def queries(self) -> list[str]:
