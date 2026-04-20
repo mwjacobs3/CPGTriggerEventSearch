@@ -5,7 +5,7 @@
 
 # ── Scraper settings ──────────────────────────────────────────────────────────
 scraper:
-  max_age_hours: 72                 # Ignore articles older than this
+  max_age_hours: 0                  # 0 = no age filter (recommended while building DB); set e.g. 72 to limit
   check_interval_minutes: 240       # Daemon mode only (GitHub Actions uses cron)
   request_delay: 1.5                # Seconds between HTTP requests
   timeout: 30
