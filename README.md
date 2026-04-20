@@ -52,9 +52,10 @@ cp .env.example .env
 ### 3. Run locally
 
 ```bash
-python main.py                    # one-shot
-python main.py --schedule         # runs every 4 hours in-process
-streamlit run dashboard.py        # open the triage UI
+cp config.example.yaml config.yaml   # customize ICP filters / queries if desired
+python -m src.main                    # one-shot scrape
+python -m src.main --daemon           # runs on the interval in config.yaml
+streamlit run dashboard.py            # open the triage UI
 ```
 
 ### 4. Deploy the 4-hour cron to GitHub Actions
@@ -80,46 +81,50 @@ The `.github/workflows/scraper.yml` workflow runs on cron `0 */4 * * *`
 ### 5. Deploy the dashboard to Streamlit Cloud
 
 1. Go to [share.streamlit.io](https://share.streamlit.io) and connect this repo.
-2. Main file: `dashboard.py`.
-3. Add secrets (use the **anon key**, not service_role):
+2. Main file: `dashboard.py`. Python version is pinned to 3.11 via `runtime.txt`.
+3. Under **Advanced settings → Secrets**, paste (use the **anon key**, not service_role):
    ```toml
    SUPABASE_URL = "https://your-project.supabase.co"
    SUPABASE_KEY = "your-anon-key"
    ```
-4. Deploy.
+4. Deploy. Theme + server settings are pre-configured in `.streamlit/config.toml`.
 
 ## Repository layout
 
 ```
 CPGTriggerEventSearch/
-├── main.py                          # orchestrator + scheduler + Supabase sync
 ├── dashboard.py                     # Streamlit triage UI
-├── config.py                        # queries, schedule, API keys
+├── main.py                          # thin shim → src.main
+├── config.example.yaml              # scraper config template (ICP, queries, filters)
 ├── requirements.txt
+├── runtime.txt                      # Python 3.11 pin for Streamlit Cloud
 ├── .env.example
+├── .streamlit/config.toml           # dashboard theme + server settings
 ├── .github/workflows/scraper.yml    # cron: every 4 hours
 ├── supabase/migrations/001_init.sql # events + source_status + RLS
-├── searchers/
-│   ├── base_searcher.py             # Google News RSS + NewsAPI + relevance
-│   ├── product_launch_searcher.py
-│   ├── funding_searcher.py
-│   └── exec_hire_searcher.py
-├── alerts/
-│   └── email_sender.py              # HTML + plain-text digest
-└── utils/
-    ├── supabase_client.py           # upserts + source_status updates
-    ├── deduplicator.py              # JSON fallback when Supabase off
-    └── formatter.py                 # console + CSV export
+└── src/
+    ├── main.py                      # orchestrator + scheduler + Supabase sync
+    ├── models.py                    # TriggerEvent dataclass
+    ├── database.py                  # Supabase client + upserts
+    ├── alerts.py                    # HTML + plain-text email digest
+    └── scrapers/
+        ├── base.py                  # shared scraper helpers
+        ├── rss_scraper.py           # Google News RSS (no API key)
+        ├── news_scraper.py          # NewsAPI
+        ├── finsmes_scraper.py       # FinSMEs funding feed
+        └── job_scraper.py           # LinkedIn / job board scraping
 ```
 
 ## Customizing the search
 
-All search queries live in [`config.py`](config.py):
+All queries, ICP filters, excluded companies/locations, and scheduling live in
+[`config.example.yaml`](config.example.yaml) — copy it to `config.yaml` and edit:
 
-```python
-PRODUCT_LAUNCH_QUERIES = [...]
-FUNDING_QUERIES = [...]
-EXEC_HIRE_QUERIES = [...]
+```yaml
+queries:
+  product_launch: [...]
+  funding:        [...]
+  exec_hire:      [...]
 ```
 
 Edit, commit, push — the next cron run picks them up. Every query is expanded
