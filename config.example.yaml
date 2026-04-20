@@ -1,0 +1,318 @@
+# CPGTriggerEventSearch — configuration
+# Copy this file to config.yaml before running.
+# Secrets (Supabase keys, email credentials) stay in environment variables
+# or GitHub Actions Secrets — never commit them here.
+
+# ── Scraper settings ──────────────────────────────────────────────────────────
+scraper:
+  max_age_hours: 72                 # Ignore articles older than this
+  check_interval_minutes: 240       # Daemon mode only (GitHub Actions uses cron)
+  request_delay: 1.5                # Seconds between HTTP requests
+  timeout: 30
+  user_agent: "Mozilla/5.0 (compatible; CPGTriggerEventSearch/2.0)"
+
+# ── Territory / ICP filters ───────────────────────────────────────────────────
+# DOSS target: mid-market ($5M–$100M) US-based CPG companies.
+territory:
+  country: "United States"
+
+  # Drop articles that are clearly about non-US companies
+  excluded_locations:
+    - "united kingdom"
+    - " uk "
+    - "australia"
+    - " canada"
+    - "india"
+    - "germany"
+    - "france"
+    - "china"
+    - "japan"
+    - "mexico"
+    - "brazil"
+    - "europe"
+    - "asia pacific"
+    - "middle east"
+
+  company_filters:
+    exclude_public_companies: true
+
+    # Text patterns that indicate a publicly traded company
+    public_company_indicators:
+      - "nasdaq:"
+      - "(nasdaq"
+      - "nyse:"
+      - "(nyse"
+      - "otcbb:"
+      - "s&p 500"
+      - "fortune 500"
+      - "fortune 100"
+
+    # Named mega-caps to always exclude (too large for DOSS)
+    excluded_public_companies:
+      - "nestle"
+      - "unilever"
+      - "procter & gamble"
+      - " p&g "
+      - "colgate"
+      - "l'oreal"
+      - "loreal"
+      - "johnson & johnson"
+      - "kimberly-clark"
+      - "general mills"
+      - "kraft heinz"
+      - "campbell soup"
+      - "conagra"
+      - "hershey"
+      - "mondelez"
+      - "pepsico"
+      - "coca-cola"
+      - "coca cola"
+      - "mars inc"
+      - "kellogg"
+      - "post holdings"
+      - "treehouse foods"
+      - "sysco"
+      - "us foods"
+
+    # Positive signals that a company is in the right size band
+    target_size_indicators:
+      - "series a"
+      - "series b"
+      - "seed round"
+      - "bootstrap"
+      - "emerging brand"
+      - "startup"
+      - "dtc"
+      - "direct-to-consumer"
+      - "challenger brand"
+      - "growing brand"
+      - "independent brand"
+      - "family-owned"
+      - "founder-led"
+
+# ── Event classification keywords ─────────────────────────────────────────────
+keywords:
+  product_launch:
+    - "launches"
+    - "launch"
+    - "debuts"
+    - "introduces"
+    - "announces new"
+    - "new product"
+    - "new brand"
+    - "going to market"
+    - "hits shelves"
+    - "available now"
+    - "unveils"
+    - "rolls out"
+
+  retail_expansion:
+    - "enters retail"
+    - "retail launch"
+    - "launches in stores"
+    - "available at"
+    - "distribution agreement"
+    - "distribution deal"
+    - "national distribution"
+    - "wholesale"
+    - "brick and mortar"
+    - "whole foods"
+    - "target stores"
+    - "walmart"
+    - "costco"
+    - "kroger"
+    - "sprouts"
+    - "amazon"
+    - "omnichannel"
+    - "dtc to retail"
+    - "online to offline"
+
+  funding:
+    - "raises"
+    - "secures"
+    - "closes"
+    - "funding round"
+    - "series a"
+    - "series b"
+    - "series c"
+    - "seed round"
+    - "venture capital"
+    - "private equity"
+    - "pe investment"
+    - "growth investment"
+    - "minority stake"
+    - "acquired"
+    - "acquisition"
+    - "merger"
+
+  exec_hire:
+    - "appoints"
+    - "names"
+    - "hires"
+    - "promotes"
+    - "joins as"
+    - "appointed as"
+    - "vp supply chain"
+    - "vice president supply chain"
+    - "vp operations"
+    - "vice president operations"
+    - "vp logistics"
+    - "vp procurement"
+    - "chief supply chain"
+    - "chief operations"
+    - "chief operating"
+    - "coo"
+    - "csco"
+    - "director supply chain"
+    - "director of operations"
+    - "director logistics"
+    - "head of supply chain"
+    - "head of operations"
+    - "head of fulfillment"
+    - "svp supply chain"
+    - "svp operations"
+
+# ── RSS feed sources ──────────────────────────────────────────────────────────
+# Add / remove feeds here. event_types is informational only (for logging).
+rss_feeds:
+  # Food & Beverage
+  - name: "Food Dive"
+    url: "https://www.fooddive.com/feeds/news/"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Food Business News"
+    url: "https://www.foodbusinessnews.net/rss/articles"
+    event_types: ["product_launch", "funding", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Grocery Dive"
+    url: "https://www.grocerydive.com/feeds/news/"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
+
+  - name: "Progressive Grocer"
+    url: "https://progressivegrocer.com/rss.xml"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Retail / Grocery"
+
+  - name: "Beverage Daily"
+    url: "https://www.beveragedaily.com/rss/feed"
+    event_types: ["product_launch", "funding"]
+    category: "Beverage"
+
+  # Health, Beauty & Wellness
+  - name: "Beauty Independent"
+    url: "https://www.beautyindependent.com/feed/"
+    event_types: ["product_launch", "funding"]
+    category: "Health & Beauty"
+
+  - name: "Drug Store News"
+    url: "https://drugstorenews.com/rss.xml"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "Health & Beauty"
+
+  - name: "Natural Products Insider"
+    url: "https://www.naturalproductsinsider.com/rss/articles"
+    event_types: ["product_launch", "funding"]
+    category: "Supplements & Wellness"
+
+  - name: "Nutraceuticals World"
+    url: "https://www.nutraceuticalsworld.com/rss/articles"
+    event_types: ["product_launch", "funding"]
+    category: "Supplements & Wellness"
+
+  # DTC / Omnichannel
+  - name: "Modern Retail"
+    url: "https://www.modernretail.co/feed/"
+    event_types: ["retail_expansion", "product_launch", "funding"]
+    category: "DTC / Retail"
+
+  - name: "Retail Brew"
+    url: "https://www.retailbrew.com/rss"
+    event_types: ["retail_expansion", "product_launch"]
+    category: "DTC / Retail"
+
+  # Press releases — broadest coverage
+  - name: "BusinessWire — Consumer Products"
+    url: "https://feed.businesswire.com/rss/home/?rss=G22"
+    event_types: ["product_launch", "funding", "exec_hire", "retail_expansion"]
+    category: "Press Releases"
+
+  - name: "PR Newswire"
+    url: "https://www.prnewswire.com/rss/news-releases-list.rss"
+    event_types: ["product_launch", "funding", "exec_hire", "retail_expansion"]
+    category: "Press Releases"
+
+  - name: "GlobeNewswire — Consumer"
+    url: "https://www.globenewswire.com/RssFeed/subjectCode/15"
+    event_types: ["product_launch", "funding", "exec_hire"]
+    category: "Press Releases"
+
+# ── Google News queries (by event type) ──────────────────────────────────────
+google_news_queries:
+  product_launch:
+    - '"new food brand" launch US'
+    - '"new beverage brand" launch US'
+    - "emerging food startup launches US market"
+    - "natural food brand launch US grocery"
+    - "functional beverage brand launch"
+    - "plant-based food brand launch US"
+    - '"new supplement brand" launch US'
+    - "health and wellness brand launch US"
+    - "clean beauty brand launch US"
+    - "personal care brand launch direct to consumer"
+    - "challenger consumer brand launch US"
+    - "DTC brand launch consumer goods"
+
+  retail_expansion:
+    - "DTC brand enters Whole Foods"
+    - "direct to consumer brand launches Target"
+    - "DTC brand Walmart retail launch"
+    - "consumer brand Costco launch"
+    - "DTC brand enters grocery retail US"
+    - "emerging brand retail distribution deal"
+    - "DTC brand wholesale expansion US"
+    - "consumer brand national distribution deal"
+    - "digital native brand retail launch US"
+    - "food brand omnichannel expansion US"
+
+  funding:
+    - "food beverage brand Series A funding"
+    - "health beauty startup Series A funding"
+    - "CPG brand Series B funding round"
+    - "supplement brand raises venture capital"
+    - "natural food brand funding round"
+    - "consumer goods startup raises million Series A"
+    - "DTC brand Series A funding"
+    - "personal care brand raises funding"
+    - "wellness brand venture capital investment"
+    - "CPG company private equity minority investment"
+    - "food brand private equity growth investment"
+
+  exec_hire:
+    - '"VP supply chain" food beverage hired'
+    - '"VP supply chain" health beauty appointed'
+    - '"Director supply chain" consumer goods named'
+    - '"Director of operations" CPG brand appointed'
+    - '"Head of supply chain" consumer brand'
+    - '"Chief Operations Officer" food beverage brand'
+    - '"COO" consumer goods startup appointed'
+    - '"VP procurement" food beverage company'
+    - '"VP logistics" consumer goods brand hired'
+    - '"Director of fulfillment" DTC brand'
+    - '"VP operations" health beauty company'
+    - "new operations leader CPG brand hired"
+    - "supply chain executive joins food beverage company"
+
+# ── Email alerts ──────────────────────────────────────────────────────────────
+# Credentials are injected from environment variables at runtime.
+# Set these in your .env or GitHub Actions Secrets.
+alerts:
+  email:
+    enabled: true
+    smtp_host: ""       # overridden by SMTP_HOST env var
+    smtp_port: 587      # overridden by SMTP_PORT env var
+    sender_email: ""    # overridden by EMAIL_SENDER env var
+    sender_password: "" # overridden by EMAIL_PASSWORD env var
+    recipient_emails: []# overridden by EMAIL_RECIPIENTS env var (comma-separated)

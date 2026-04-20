@@ -304,6 +304,11 @@ def render_event_card(row, event_config) -> None:
     status = row.get("lead_status", "NEW") or "NEW"
     title = str(row.get("title", ""))[:140]
     company = row.get("company_name") or "Unknown Company"
+    location = row.get("company_location", "") or ""
+    person_name = row.get("person_name", "") or ""
+    person_title = row.get("person_title", "") or ""
+    funding_round = row.get("funding_round", "") or ""
+    funding_amount = row.get("funding_amount", "") or ""
     published = row.get("published_date", "")
 
     date_display = ""
@@ -321,6 +326,16 @@ def render_event_card(row, event_config) -> None:
     status_cfg = STATUS_CONFIG.get(status, STATUS_CONFIG["NEW"])
     badge_class = event_config.get("badge_class", "badge-other")
 
+    # Build supplemental line: person name, funding round, or location
+    extra_html = ""
+    if person_name:
+        extra_html = f'<div class="event-company"><span>👤</span><span>{person_name}{" — " + person_title if person_title else ""}</span></div>'
+    elif funding_round or funding_amount:
+        label = " · ".join(filter(None, [funding_round, funding_amount]))
+        extra_html = f'<div class="event-company"><span>💰</span><span>{label}</span></div>'
+    elif location:
+        extra_html = f'<div class="event-company"><span>📍</span><span>{location}</span></div>'
+
     with st.container(border=True):
         st.markdown(
             f"""
@@ -331,6 +346,7 @@ def render_event_card(row, event_config) -> None:
                 </div>
                 <div class="event-title">{title}</div>
                 <div class="event-company"><span>🏢</span><span>{company}</span></div>
+                {extra_html}
                 <div class="event-meta"><span>📅 {date_display}</span></div>
             </div>
             """,
