@@ -1,0 +1,1 @@
+"""CPGTriggerEventSearch — src package."""
