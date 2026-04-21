@@ -47,7 +47,7 @@ territory:
       - "fortune 500"
       - "fortune 100"
 
-    # Named mega-caps to always exclude (too large for DOSS)
+    # Mega CPG manufacturers — filtered if mentioned anywhere (too large for DOSS).
     excluded_public_companies:
       - "nestle"
       - "unilever"
@@ -69,10 +69,98 @@ territory:
       - "coca cola"
       - "mars inc"
       - "kellogg"
+      - "kellanova"
       - "post holdings"
       - "treehouse foods"
       - "sysco"
       - "us foods"
+      - "reckitt"
+      - "church & dwight"
+      - "clorox"
+      - "anheuser-busch"
+      - "ab inbev"
+      - "molson coors"
+      - "constellation brands"
+      - "keurig dr pepper"
+      - "tyson foods"
+      - "hormel"
+      - "estee lauder"
+      - "coty inc"
+      - "haleon"
+      - "kenvue"
+
+    # Major retailers / corporations — filtered ONLY when they are the
+    # SUBJECT of the article. A mid-market CPG brand *entering* these
+    # retailers (Meijer, Target, Whole Foods, Container Store, etc.) is
+    # exactly the signal we want, so we don't want to blanket-exclude.
+    excluded_mega_subjects:
+      # Grocery / mass
+      - "walmart"
+      - "amazon"
+      - "target corporation"
+      - "kroger"
+      - "costco"
+      - "albertsons"
+      - "dollar general"
+      - "meijer"
+      - "publix"
+      - "wegmans"
+      - "h-e-b"
+      - "whole foods"
+      - "trader joe"
+      - "sprouts farmers market"
+      - "aldi"
+      # Drug / convenience
+      - "cvs"
+      - "walgreens"
+      - "rite aid"
+      - "7-eleven"
+      # Big-box / specialty
+      - "home depot"
+      - "lowe's"
+      - "best buy"
+      - "macy's"
+      - "nordstrom"
+      - "kohl's"
+      - "tj maxx"
+      - "marshalls"
+      - "dick's sporting goods"
+      - "tractor supply"
+      - "bed bath"
+      - "the container store"
+      - "container store"
+      - "williams-sonoma"
+      - "ulta beauty"
+      - "sephora"
+      - "petsmart"
+      - "petco"
+      - "sam's club"
+      - "bj's wholesale"
+      # QSR / foodservice
+      - "starbucks"
+      - "mcdonald's"
+      - "chipotle"
+      - "dunkin"
+      - "chick-fil-a"
+      # Media / tech / entertainment
+      - "espn"
+      - "the walt disney"
+      - "disney+"
+      - "warner bros"
+      - "nbcuniversal"
+      - "paramount global"
+      - "fox corporation"
+      - "comcast"
+      - "netflix"
+      - "spotify"
+      # Airlines / hotels / telecom (not DOSS ICP)
+      - "united airlines"
+      - "delta air lines"
+      - "marriott"
+      - "hilton worldwide"
+      - "verizon"
+      - "at&t"
+      - "t-mobile"
 
     # Positive signals that a company is in the right size band
     target_size_indicators:

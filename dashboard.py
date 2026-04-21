@@ -15,6 +15,18 @@ from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
+try:
+    from src.scrapers.base import INDUSTRY_LABELS
+except Exception:
+    INDUSTRY_LABELS = {
+        "food_beverage":        "Food & Beverage",
+        "health_beauty":        "Health & Beauty",
+        "wellness_supplements": "Supplements & Wellness",
+        "household_home":       "Household & Home",
+        "pet":                  "Pet & Specialty",
+        "other_cpg":            "Consumer Goods (Other)",
+    }
+
 st.set_page_config(
     page_title="CPG Trigger Events",
     page_icon="🛒",
@@ -25,108 +37,152 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    /* ── DOSS-aligned palette: ink hero, warm accent, clean minimal cards ── */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+        --doss-ink:        #0B0B0C;  /* near-black hero */
+        --doss-ink-2:      #1A1A1F;  /* card dark text */
+        --doss-accent:     #FF6B35;  /* warm orange accent */
+        --doss-accent-2:   #F59E0B;  /* amber secondary */
+        --doss-surface:    #FAFAF7;  /* warm off-white app bg */
+        --doss-border:     #E5E4DF;
+        --doss-muted:      #6B6B6B;
+        --doss-muted-2:    #9A9A94;
+    }
 
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    .stApp { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--doss-surface);
+        color: var(--doss-ink-2);
+    }
 
     .main-header {
-        background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
-        padding: 2rem 2.5rem;
-        border-radius: 16px;
+        background: var(--doss-ink);
+        padding: 2.5rem 2.75rem;
+        border-radius: 20px;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(14, 165, 233, 0.3);
+        border: 1px solid #000;
+        position: relative;
+        overflow: hidden;
+    }
+    .main-header::after {
+        content: "";
+        position: absolute; inset: auto -40px -40px auto;
+        width: 220px; height: 220px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,107,53,0.25) 0%, rgba(255,107,53,0) 70%);
+        pointer-events: none;
     }
     .main-header h1 {
-        color: white; font-size: 2rem; font-weight: 700; margin: 0;
-        letter-spacing: -0.5px;
+        color: #FFFFFF; font-size: 2.1rem; font-weight: 800; margin: 0;
+        letter-spacing: -0.8px;
     }
-    .main-header p { color: rgba(255,255,255,0.85); font-size: 1rem; margin-top: 0.5rem; }
+    .main-header .eyebrow {
+        color: var(--doss-accent); font-size: 0.75rem; font-weight: 700;
+        letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.5rem;
+    }
+    .main-header p { color: rgba(255,255,255,0.72); font-size: 0.98rem; margin-top: 0.65rem; max-width: 720px; }
 
     .metric-card {
-        background: white; border-radius: 16px; padding: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        border: 1px solid rgba(0,0,0,0.05);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: #FFFFFF; border-radius: 14px; padding: 1.4rem;
+        border: 1px solid var(--doss-border);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        transition: transform 0.15s ease, border-color 0.15s ease;
     }
-    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+    .metric-card:hover { transform: translateY(-1px); border-color: var(--doss-ink); }
     .metric-icon {
-        width: 48px; height: 48px; border-radius: 12px;
+        width: 40px; height: 40px; border-radius: 10px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 1.5rem; margin-bottom: 1rem;
+        font-size: 1.25rem; margin-bottom: 0.9rem;
     }
-    .metric-value { font-size: 2rem; font-weight: 700; color: #1a1a2e; line-height: 1; }
-    .metric-label { font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem; font-weight: 500; }
+    .metric-value { font-size: 1.9rem; font-weight: 700; color: var(--doss-ink); line-height: 1; letter-spacing: -0.5px; }
+    .metric-label { font-size: 0.78rem; color: var(--doss-muted); margin-top: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
 
     .event-card-inner { padding: 0.25rem 0; }
-    .event-card-header { display: flex; align-items: flex-start; gap: 1rem; }
+    .event-card-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
     .event-type-badge {
-        padding: 0.35rem 0.75rem; border-radius: 50px;
-        font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-        letter-spacing: 0.5px; white-space: nowrap;
+        padding: 0.3rem 0.7rem; border-radius: 6px;
+        font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.6px; white-space: nowrap;
     }
-    .badge-launch  { background: #dcfce7; color: #166534; }
-    .badge-funding { background: #fef3c7; color: #92400e; }
-    .badge-exec    { background: #ede9fe; color: #5b21b6; }
-    .badge-retail  { background: #dbeafe; color: #1e40af; }
-    .badge-other   { background: #f3f4f6; color: #374151; }
+    .badge-launch  { background: #E8F5EC; color: #0F5132; }
+    .badge-funding { background: #FFF3D9; color: #7A4900; }
+    .badge-exec    { background: #EBE5FA; color: #4C1D95; }
+    .badge-retail  { background: #E0EAFB; color: #1E3A8A; }
+    .badge-other   { background: #EEEEEA; color: #3F3F3F; }
 
     .status-badge {
-        padding: 0.25rem 0.6rem; border-radius: 50px;
-        font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.4px;
     }
-    .status-new          { background: #dbeafe; color: #1e40af; }
-    .status-contacted    { background: #fef3c7; color: #92400e; }
-    .status-customer     { background: #d1fae5; color: #065f46; }
-    .status-out          { background: #fee2e2; color: #991b1b; }
-    .status-not-relevant { background: #f3f4f6; color: #6b7280; }
+    .status-new          { background: var(--doss-ink); color: #FFFFFF; }
+    .status-added        { background: #FFE4D6; color: #B0440D; }
+    .status-customer     { background: #D6F0E0; color: #0F5132; }
+    .status-not-relevant { background: #EEEEEA; color: #6B6B6B; }
+
+    .industry-badge {
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 600;
+        background: #F3F1EC; color: var(--doss-ink-2);
+        border: 1px solid var(--doss-border);
+    }
 
     .score-badge {
-        padding: 0.25rem 0.6rem; border-radius: 50px;
-        font-size: 0.7rem; font-weight: 700;
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700;
         font-variant-numeric: tabular-nums;
     }
-    .score-hot  { background: #fecaca; color: #991b1b; }   /* ≥75 — hottest DOSS prospects */
-    .score-warm { background: #fed7aa; color: #9a3412; }   /* 50–74 */
-    .score-cool { background: #e0e7ff; color: #3730a3; }   /* <50  */
+    .score-hot  { background: var(--doss-accent); color: #FFFFFF; }
+    .score-warm { background: #FFE4D6; color: #B0440D; }
+    .score-cool { background: #EEEEEA; color: #4A4A4A; }
 
     .event-title {
-        font-size: 1rem; font-weight: 600; color: #1a1a2e;
-        margin: 0.5rem 0; line-height: 1.4;
+        font-size: 1.02rem; font-weight: 600; color: var(--doss-ink);
+        margin: 0.65rem 0 0.4rem; line-height: 1.4; letter-spacing: -0.1px;
     }
     .event-company { display: flex; align-items: center; gap: 0.5rem;
-                     color: #6b7280; font-size: 0.875rem; }
+                     color: var(--doss-muted); font-size: 0.875rem; }
     .event-meta    { display: flex; gap: 1rem; margin-top: 0.75rem;
-                     font-size: 0.8rem; color: #9ca3af; }
+                     font-size: 0.78rem; color: var(--doss-muted-2); }
 
     .search-container {
-        background: white; border-radius: 12px; padding: 0.5rem;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 1.5rem;
+        background: #FFFFFF; border-radius: 10px; padding: 0.4rem;
+        border: 1px solid var(--doss-border);
+        margin-bottom: 1.5rem;
     }
 
     .section-header {
         display: flex; align-items: center; gap: 0.75rem;
         margin: 1.5rem 0 1rem; padding-bottom: 0.75rem;
-        border-bottom: 2px solid #f1f5f9;
+        border-bottom: 1px solid var(--doss-border);
     }
-    .section-header h2 { font-size: 1.25rem; font-weight: 600; color: #1a1a2e; margin: 0; }
+    .section-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--doss-ink); margin: 0; letter-spacing: -0.3px; }
     .section-count {
-        background: #f1f5f9; padding: 0.25rem 0.75rem; border-radius: 50px;
-        font-size: 0.8rem; font-weight: 600; color: #64748b;
+        background: var(--doss-ink); padding: 0.2rem 0.65rem; border-radius: 6px;
+        font-size: 0.72rem; font-weight: 700; color: #FFFFFF;
     }
 
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #fafbfc 0%, #f1f5f9 100%);
+        background: #FFFFFF; border-right: 1px solid var(--doss-border);
+    }
+    section[data-testid="stSidebar"] h3 { color: var(--doss-ink); font-weight: 700; }
+
+    .stButton > button {
+        border-radius: 8px; font-weight: 600; transition: all 0.15s ease;
+        border: 1px solid var(--doss-ink); background: var(--doss-ink); color: #FFFFFF;
+    }
+    .stButton > button:hover {
+        background: var(--doss-accent); border-color: var(--doss-accent);
+        color: #FFFFFF; transform: translateY(-1px);
     }
 
-    .stButton > button { border-radius: 8px; font-weight: 500; transition: all 0.2s ease; }
-    .stButton > button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-
-    hr { border: none; height: 1px; background: #e5e7eb; margin: 1.5rem 0; }
+    hr { border: none; height: 1px; background: var(--doss-border); margin: 1.5rem 0; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -181,21 +237,19 @@ EVENT_TYPES = {
     },
 }
 
-# ── Lead workflow (adapted for DOSS sales) ────────────────────────────────────
+# ── Lead workflow — simplified to 3 actionable outcomes for DOSS sales ────────
 LEAD_STATUSES = [
     "NEW",
-    "REVIEWED - Contacted",
-    "REVIEWED - DOSS Customer",
-    "REVIEWED - Out of Alignment",
+    "ADDED TO LEAD LIST",
+    "DOSS CUSTOMER / PROSPECT",
     "NOT RELEVANT",
 ]
 
 STATUS_CONFIG = {
-    "NEW":                         {"icon": "🆕", "class": "status-new",          "label": "New"},
-    "REVIEWED - Contacted":        {"icon": "📞", "class": "status-contacted",    "label": "Contacted"},
-    "REVIEWED - DOSS Customer":    {"icon": "💼", "class": "status-customer",     "label": "DOSS Customer"},
-    "REVIEWED - Out of Alignment": {"icon": "❌", "class": "status-out",          "label": "Out"},
-    "NOT RELEVANT":                {"icon": "🚫", "class": "status-not-relevant", "label": "Not Relevant"},
+    "NEW":                       {"icon": "🆕", "class": "status-new",          "label": "New"},
+    "ADDED TO LEAD LIST":        {"icon": "✅", "class": "status-added",        "label": "Added to Lead List"},
+    "DOSS CUSTOMER / PROSPECT":  {"icon": "💼", "class": "status-customer",     "label": "DOSS Customer / Prospect"},
+    "NOT RELEVANT":              {"icon": "🚫", "class": "status-not-relevant", "label": "Not Relevant"},
 }
 
 
@@ -322,17 +376,15 @@ def _score_badge(score: float) -> str:
 
 
 def render_metric_card(icon: str, value: int, label: str, color: str) -> None:
-    bg_gradient = f"linear-gradient(135deg, {color}20 0%, {color}10 100%)"
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-icon" style="background: {bg_gradient};">{icon}</div>
-            <div class="metric-value">{value:,}</div>
-            <div class="metric-label">{label}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    bg_gradient = f"linear-gradient(135deg, {color}28 0%, {color}10 100%)"
+    html = (
+        '<div class="metric-card">'
+        f'<div class="metric-icon" style="background: {bg_gradient};">{icon}</div>'
+        f'<div class="metric-value">{value:,}</div>'
+        f'<div class="metric-label">{label}</div>'
+        '</div>'
     )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_event_card(row, event_config) -> None:
@@ -344,6 +396,7 @@ def render_event_card(row, event_config) -> None:
     person_title = row.get("person_title", "") or ""
     funding_round = row.get("funding_round", "") or ""
     funding_amount = row.get("funding_amount", "") or ""
+    industry_key = row.get("industry", "") or ""
     published = row.get("published_date", "")
 
     date_display = ""
@@ -361,6 +414,10 @@ def render_event_card(row, event_config) -> None:
     status_cfg = STATUS_CONFIG.get(status, STATUS_CONFIG["NEW"])
     badge_class = event_config.get("badge_class", "badge-other")
     score_badge_html = _score_badge(row.get("relevance_score", 0))
+    industry_label = INDUSTRY_LABELS.get(industry_key, "") if industry_key else ""
+    industry_html = (
+        f'<span class="industry-badge">🏷 {industry_label}</span>' if industry_label else ""
+    )
 
     # Build supplemental line: person name, funding round, or location
     extra_html = ""
@@ -372,23 +429,25 @@ def render_event_card(row, event_config) -> None:
     elif location:
         extra_html = f'<div class="event-company"><span>📍</span><span>{location}</span></div>'
 
+    # Keep this markdown flush left — Streamlit uses CommonMark, which treats
+    # content indented 4+ spaces as a code block and prints raw HTML to the UI.
+    card_html = (
+        '<div class="event-card-inner">'
+        '<div class="event-card-header">'
+        f'<span class="event-type-badge {badge_class}">{event_config["icon"]} {event_config["label"]}</span>'
+        f'<span class="status-badge {status_cfg["class"]}">{status_cfg["label"]}</span>'
+        f'{industry_html}'
+        f'{score_badge_html}'
+        '</div>'
+        f'<div class="event-title">{title}</div>'
+        f'<div class="event-company"><span>🏢</span><span>{company}</span></div>'
+        f'{extra_html}'
+        f'<div class="event-meta"><span>📅 {date_display}</span></div>'
+        '</div>'
+    )
+
     with st.container(border=True):
-        st.markdown(
-            f"""
-            <div class="event-card-inner">
-                <div class="event-card-header">
-                    <span class="event-type-badge {badge_class}">{event_config['icon']} {event_config['label']}</span>
-                    <span class="status-badge {status_cfg['class']}">{status_cfg['label']}</span>
-                    {score_badge_html}
-                </div>
-                <div class="event-title">{title}</div>
-                <div class="event-company"><span>🏢</span><span>{company}</span></div>
-                {extra_html}
-                <div class="event-meta"><span>📅 {date_display}</span></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
         with st.expander("📝 Details & Actions"):
             col1, col2 = st.columns([2, 1])
@@ -439,16 +498,14 @@ def render_event_section(df, event_type, event_config) -> None:
         )
     full_label = event_config.get("full_label", event_config["label"])
 
-    st.markdown(
-        f"""
-        <div class="section-header">
-            <span style="font-size: 1.5rem;">{event_config['icon']}</span>
-            <h2>{full_label}</h2>
-            <span class="section-count">{len(type_df)}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    header_html = (
+        '<div class="section-header">'
+        f'<span style="font-size: 1.5rem;">{event_config["icon"]}</span>'
+        f'<h2>{full_label}</h2>'
+        f'<span class="section-count">{len(type_df)}</span>'
+        '</div>'
     )
+    st.markdown(header_html, unsafe_allow_html=True)
 
     if type_df.empty:
         st.info(f"No {full_label.lower()} found matching your filters.")
@@ -499,15 +556,16 @@ def render_source_status_table(df: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    st.markdown(
-        """
-        <div class="main-header">
-            <h1>🛒 CPG Trigger Events — DOSS ICP</h1>
-            <p>Mid-market Food &amp; Bev · Health &amp; Beauty · Consumer Goods — new launches, retail expansions, Series A/B funding, ops exec hires</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    hero_html = (
+        '<div class="main-header">'
+        '<div class="eyebrow">DOSS · Sales Intelligence</div>'
+        '<h1>CPG Trigger Events</h1>'
+        '<p>Mid-market Food &amp; Bev, Health &amp; Beauty, and Consumer Goods signals — '
+        'product launches, retail expansion, Series A/B funding, and ops exec hires '
+        'mapped to DOSS’s ideal customer profile.</p>'
+        '</div>'
     )
+    st.markdown(hero_html, unsafe_allow_html=True)
 
     client = get_supabase_client()
     if not client:
@@ -528,7 +586,7 @@ def main() -> None:
         return
 
     # Sidebar filters
-    st.sidebar.markdown("### 🎛️ Filters")
+    st.sidebar.markdown("### Filters")
     days = st.sidebar.slider("Time Range (days)", 1, 90, 30)
     if st.sidebar.button("🔄 Refresh data", use_container_width=True, help="Bypass the 5-min cache"):
         _fetch_events.clear()
@@ -548,20 +606,53 @@ def main() -> None:
         st.info("📭 No events found. Run the scraper to populate data.")
         return
 
-    # Metrics
+    # Industry filter — slice DOSS's ICP by vertical
+    industry_options = [
+        (key, INDUSTRY_LABELS.get(key, key))
+        for key in INDUSTRY_LABELS
+        if "industry" in df.columns and (df["industry"] == key).any()
+    ]
+    selected_industries: list[str] = []
+    if industry_options:
+        st.sidebar.markdown("### Industry")
+        selected_labels = st.sidebar.multiselect(
+            "Filter by industry",
+            options=[label for _, label in industry_options],
+            default=[],
+            label_visibility="collapsed",
+            placeholder="All industries",
+        )
+        label_to_key = {label: key for key, label in industry_options}
+        selected_industries = [label_to_key[l] for l in selected_labels]
+        if selected_industries:
+            df = df[df["industry"].isin(selected_industries)]
+
+    if df.empty:
+        st.info("📭 No events match the selected industry filter.")
+        return
+
+    # Metrics — DOSS palette (ink + accent)
     type_counts = df["event_type"].value_counts().to_dict()
     new_count = len(df[df["lead_status"] == "NEW"])
+    top_industry_label = "—"
+    if "industry" in df.columns and not df["industry"].dropna().empty:
+        top_key = df["industry"].replace("", pd.NA).dropna().value_counts().idxmax()
+        top_industry_label = INDUSTRY_LABELS.get(top_key, top_key)
+
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        render_metric_card("📊", len(df), "Total Signals", "#0ea5e9")
+        render_metric_card("📊", len(df), "Total Signals", "#0B0B0C")
     with col2:
-        render_metric_card("🆕", new_count, "New Leads", "#10b981")
+        render_metric_card("🆕", new_count, "New Leads", "#FF6B35")
     with col3:
-        render_metric_card("🏪", type_counts.get("retail_expansion", 0), "Retail Expansions", "#3b82f6")
+        render_metric_card("🏪", type_counts.get("retail_expansion", 0), "Retail Expansions", "#1E3A8A")
     with col4:
-        render_metric_card("💰", type_counts.get("funding", 0), "PE/VC Funding", "#f59e0b")
+        render_metric_card("💰", type_counts.get("funding", 0), "PE/VC Funding", "#F59E0B")
     with col5:
-        render_metric_card("👤", type_counts.get("exec_hire", 0), "Ops Hires", "#8b5cf6")
+        render_metric_card("👤", type_counts.get("exec_hire", 0), "Ops Hires", "#4C1D95")
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"🏷 Top vertical: **{top_industry_label}**")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -574,16 +665,14 @@ def main() -> None:
     classified_df = df[df["lead_status"] != "NEW"]
 
     # New Leads
-    st.markdown(
-        f"""
-        <div class="section-header">
-            <span style="font-size: 1.5rem;">🆕</span>
-            <h2>New Leads</h2>
-            <span class="section-count">{len(new_df)}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    new_header_html = (
+        '<div class="section-header">'
+        '<span style="font-size: 1.5rem;">🆕</span>'
+        '<h2>New Leads</h2>'
+        f'<span class="section-count">{len(new_df)}</span>'
+        '</div>'
     )
+    st.markdown(new_header_html, unsafe_allow_html=True)
 
     if new_df.empty:
         st.info("No new leads to review. Nice work!")
@@ -612,16 +701,14 @@ def main() -> None:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Classified Leads
-    st.markdown(
-        f"""
-        <div class="section-header">
-            <span style="font-size: 1.5rem;">📋</span>
-            <h2>Classified Leads</h2>
-            <span class="section-count">{len(classified_df)}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    classified_header_html = (
+        '<div class="section-header">'
+        '<span style="font-size: 1.5rem;">📋</span>'
+        '<h2>Classified Leads</h2>'
+        f'<span class="section-count">{len(classified_df)}</span>'
+        '</div>'
     )
+    st.markdown(classified_header_html, unsafe_allow_html=True)
 
     if classified_df.empty:
         st.info("No classified leads yet. Review new leads above to classify them.")
@@ -653,10 +740,22 @@ def main() -> None:
 
     # All Events Table + Export
     with st.expander("📊 All Events Table", expanded=False):
-        cols = ["event_type", "company_name", "title", "published_date", "lead_status"]
+        cols = ["event_type", "industry", "company_name", "title", "published_date", "lead_status"]
         available = [c for c in cols if c in df.columns]
         display = df[available].copy()
-        display.columns = ["Type", "Company", "Title", "Published", "Status"]
+        rename_map = {
+            "event_type": "Type",
+            "industry": "Industry",
+            "company_name": "Company",
+            "title": "Title",
+            "published_date": "Published",
+            "lead_status": "Status",
+        }
+        display.columns = [rename_map[c] for c in available]
+        if "Industry" in display.columns:
+            display["Industry"] = display["Industry"].map(
+                lambda k: INDUSTRY_LABELS.get(k, "") if k else ""
+            )
         st.dataframe(display, use_container_width=True, hide_index=True)
 
         csv = df.to_csv(index=False)
@@ -672,9 +771,10 @@ def main() -> None:
     st.sidebar.markdown("### ⚡ Bulk Actions")
     st.sidebar.caption("Apply to all NEW leads:")
 
+    bulk_options = [s for s in LEAD_STATUSES if s != "NEW"]
     bulk_status = st.sidebar.selectbox(
         "Mark all new as:",
-        ["Select status…"] + LEAD_STATUSES,
+        ["Select status…"] + bulk_options,
         label_visibility="collapsed",
     )
     if (

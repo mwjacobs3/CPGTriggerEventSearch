@@ -39,6 +39,7 @@ class TriggerEvent:
     # Company intel
     company_name: Optional[str] = None
     company_location: Optional[str] = None
+    industry: Optional[str] = None     # DOSS ICP slice: food_beverage, health_beauty, etc.
 
     # Article body
     description: Optional[str] = None
@@ -67,6 +68,7 @@ class TriggerEvent:
             "title": self.title,
             "company_name": self.company_name or "",
             "company_location": self.company_location or "",
+            "industry": self.industry or "",
             "description": (self.description or "")[:2000],
             "source_name": self.source_name or "",
             "source_url": self.url,
