@@ -54,6 +54,7 @@ class RSSScraper(BaseScraper):
     ) -> tuple[list[TriggerEvent], str]:
         name = feed_cfg.get("name", "")
         url = feed_cfg.get("url", "")
+        category_hint = feed_cfg.get("category", "")
 
         try:
             feed = feedparser.parse(url)
@@ -79,6 +80,7 @@ class RSSScraper(BaseScraper):
                     description=summary,
                     source_name=name,
                     published_date=published,
+                    industry_hint=category_hint,
                 )
                 if event is None:
                     continue

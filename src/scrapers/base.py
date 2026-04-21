@@ -18,19 +18,98 @@ from ..models import EventType, TriggerEvent
 # ── Company-size & public-company exclusions ─────────────────────────────────
 # We want mid-market ($5M–$100M). Exclude Fortune 500 / mega-cap mentions.
 PUBLIC_COMPANY_INDICATORS = [
-    "nasdaq:", "(nasdaq", "nyse:", "(nyse", "otcbb:", "otc markets",
-    "s&p 500", "fortune 500", "fortune 100",
+    "nasdaq:", "(nasdaq", "nyse:", "(nyse", "otcbb:", "(otcbb",
+    "otc markets", "(otcqx", "(otcqb", "amex:", "(amex",
+    "s&p 500", "fortune 500", "fortune 100", "fortune 1000",
+    "russell 2000", "russell 1000", "dow jones industrial",
+    "publicly traded", "publicly-traded", "publicly held",
+    "market capitalization of", "market cap of $",
+    "q1 earnings", "q2 earnings", "q3 earnings", "q4 earnings",
+    "quarterly earnings", "annual report",
+    "10-k filing", "10-q filing", "8-k filing",
+    "sec filing", "proxy statement", "investor relations",
+    "shareholder meeting", "dividend declaration",
 ]
 
-EXCLUDED_COMPANIES = [
-    "nestle", "unilever", "procter & gamble", " p&g ", "colgate",
-    "l'oreal", "loreal", "johnson & johnson", "j&j", "kimberly-clark",
+# Ticker patterns: (NYSE: ABC), (NASDAQ: XYZ), NYSE:ABC, etc.
+PUBLIC_TICKER_REGEX = re.compile(
+    r"\((?:nyse|nasdaq|otcbb|otcqx|otcqb|amex|lse|tsx|asx)\s*[:.]\s*[a-z0-9.\-]{1,6}\)"
+    r"|\b(?:nyse|nasdaq|otcbb|amex|lse|tsx|asx)\s*:\s*[a-z0-9.\-]{1,6}\b",
+    re.IGNORECASE,
+)
+
+# Mega CPG manufacturers — if they appear anywhere in the text, drop the
+# article (it's either about them or an acquisition involving them).
+EXCLUDED_MEGA_CPG = [
+    "nestle", "nestlé", "unilever", "procter & gamble", " p&g ",
+    "colgate", "l'oreal", "loreal", "l’oreal",
+    "johnson & johnson", " j&j ", "kimberly-clark",
     "general mills", "kraft heinz", "campbell soup", "conagra", "hershey",
     "mondelez", "pepsico", "coca-cola", "coca cola", "mars inc",
-    "kellogg", "post holdings", "treehouse foods", "sysco", "us foods",
-    "amazon ", "walmart ", "target corp", "kroger", "costco wholesale",
-    "albertsons", "dollar general", "cvs health", "walgreens",
+    "mars wrigley", "mars petcare",
+    "kellogg", "kellanova", "post holdings", "treehouse foods",
+    "sysco", "us foods", "performance food group",
+    "reckitt", "church & dwight", "clorox",
+    "anheuser-busch", "anheuser busch", "ab inbev", "molson coors",
+    "constellation brands", "diageo", "heineken", "keurig dr pepper",
+    "tyson foods", " tyson ", "hormel", "smithfield foods",
+    "archer daniels midland", " adm ", "bunge",
+    "estee lauder", "estée lauder", "coty inc", "revlon inc",
+    "haleon", "kenvue",
 ]
+
+# Major retailers / large corporations — filter ONLY when they are the
+# subject of the article. A mid-market CPG brand *entering* Meijer / Target /
+# Whole Foods / Container Store is a HIGH-value signal for DOSS, so we can't
+# blanket-exclude these names.
+EXCLUDED_MEGA_SUBJECTS = [
+    # Grocery / mass
+    "walmart", "amazon", "target", "target corporation",
+    "kroger", "costco", "costco wholesale",
+    "albertsons", "safeway", "dollar general", "dollar tree",
+    "family dollar", "five below", "ollie's",
+    "meijer", "publix", "wegmans", "h-e-b", "heb grocery",
+    "giant eagle", "ahold delhaize", "ahold", "stop & shop",
+    "food lion", "harris teeter", "whole foods", "whole foods market",
+    "trader joe's", "trader joes", "sprouts farmers market",
+    "aldi", "lidl",
+    # Drug / convenience
+    "cvs", "cvs health", "cvs pharmacy", "walgreens", "rite aid",
+    "7-eleven", "circle k",
+    # Big-box / specialty
+    "home depot", "the home depot", "lowe's", "lowes",
+    "best buy", "macy's", "macys", "nordstrom", "jcpenney",
+    "kohl's", "kohls", "tjx", "tj maxx", "marshalls", "homegoods",
+    "dick's sporting goods", "academy sports", "tractor supply",
+    "bed bath", "container store", "the container store",
+    "ikea", "williams-sonoma", "pottery barn",
+    "ulta", "ulta beauty", "sephora",
+    "petsmart", "petco", "pet supplies plus",
+    "sam's club", "sams club", "bj's wholesale", "bjs wholesale",
+    "five below", "burlington", "ross stores", "dollar tree",
+    # Beauty / apparel department stores
+    "saks fifth avenue", "bloomingdale's", "bloomingdales", "neiman marcus",
+    # QSR / foodservice (not CPG)
+    "starbucks", "mcdonald's", "mcdonalds", "chipotle", "dunkin",
+    "burger king", "wendy's", "wendys", "taco bell", "kfc",
+    "domino's", "dominos", "pizza hut", "subway restaurants",
+    "chick-fil-a", "chick fil a", "panera bread", "shake shack",
+    # Media / tech / entertainment
+    "espn", "the walt disney", "walt disney", "disney company", "disney+",
+    "warner bros", "warner media", "warnermedia",
+    "nbcuniversal", "nbc universal", "paramount global", "paramount+",
+    "fox corporation", "fox news", "comcast", "netflix", "spotify",
+    "meta platforms", "alphabet inc", "apple inc", "microsoft",
+    "abc news", "cbs news", "nbc news",
+    # Airlines / hospitality / telecom (not DOSS ICP)
+    "united airlines", "delta air lines", "american airlines", "southwest airlines",
+    "marriott", "hilton worldwide", "hyatt hotels",
+    "verizon", "at&t", "t-mobile",
+    "exxon", "chevron", "shell plc",
+]
+
+# Legacy alias — preserved so older configs that reference this still load.
+EXCLUDED_COMPANIES = EXCLUDED_MEGA_CPG
 
 # Positive signals that a company is in the right size band
 TARGET_SIZE_SIGNALS = [
@@ -45,6 +124,69 @@ EXCLUDED_LOCATIONS = [
     "germany", "france", "china", "japan", "mexico", "brazil",
     "europe", "european", "asia", "africa", "middle east",
 ]
+
+# Signals that the story is about a CPG brand *entering* a retailer rather
+# than about the retailer itself (so we can keep those even if a mega-
+# retailer name appears in the title).
+RETAIL_ENTRY_SIGNALS = [
+    "launches at", "launches in", "launches into",
+    "available at", "available in", "rolls out at", "rolls out in",
+    "enters", "expands to", "expands into", "debuts at", "debuts in",
+    "hits shelves at", "lands at", "now at",
+    "distribution deal with", "distribution agreement with",
+    "partners with", "partnership with",
+]
+
+# ── Industry classification (DOSS ICP slices) ────────────────────────────────
+INDUSTRY_LABELS = {
+    "food_beverage":        "Food & Beverage",
+    "health_beauty":        "Health & Beauty",
+    "wellness_supplements": "Supplements & Wellness",
+    "household_home":       "Household & Home",
+    "pet":                  "Pet & Specialty",
+    "other_cpg":            "Consumer Goods (Other)",
+}
+
+INDUSTRY_KEYWORDS = {
+    "food_beverage": [
+        "food", "beverage", "drink", "snack", "grocery", "coffee", "tea",
+        "beer", "wine", "spirits", "alcohol", "bakery", "candy", "chocolate",
+        "dairy", "cheese", "yogurt", "ice cream", "frozen food", "meat",
+        "seafood", "plant-based", "vegan", "protein bar", "functional beverage",
+        "specialty food", "artisan food", "nutrition bar", "sauce", "condiment",
+        "sparkling water", "energy drink", "soda", "kombucha", "cereal",
+    ],
+    "health_beauty": [
+        "beauty", "skincare", "haircare", "cosmetic", "makeup", "fragrance",
+        "personal care", "bath", "body care", "clean beauty", "indie beauty",
+        "grooming", "shaving", "sun care", "deodorant", "nail care",
+        "color cosmetic", "prestige beauty", "masstige",
+    ],
+    "wellness_supplements": [
+        "supplement", "vitamin", "nutraceutical", "wellness", "herbal",
+        "nootropic", "adaptogen", "probiotic", "collagen", "electrolyte",
+        "functional supplement", "sports nutrition",
+    ],
+    "household_home": [
+        "cleaning", "household", "laundry", "dish soap", "detergent",
+        "home goods", "home care", "eco-friendly home", "paper product",
+        "candle", "home fragrance",
+    ],
+    "pet": [
+        "pet food", "pet brand", "pet care", "pet wellness", "dog food",
+        "cat food", "pet treat", "pet supplement", "petsmart", "petco",
+    ],
+}
+
+# RSS feed "category" hint → industry key
+RSS_CATEGORY_TO_INDUSTRY = {
+    "food & beverage":         "food_beverage",
+    "beverage":                "food_beverage",
+    "retail / grocery":        "food_beverage",
+    "health & beauty":         "health_beauty",
+    "supplements & wellness":  "wellness_supplements",
+    "pet / specialty":         "pet",
+}
 
 
 class BaseScraper(ABC):
@@ -69,8 +211,10 @@ class BaseScraper(ABC):
 
         filters = config.get("territory", {}).get("company_filters", {})
         self.exclude_public = filters.get("exclude_public_companies", True)
-        extra_excluded = [c.lower() for c in filters.get("excluded_public_companies", [])]
-        self._excluded_companies = EXCLUDED_COMPANIES + extra_excluded
+        extra_mega_cpg = [c.lower() for c in filters.get("excluded_public_companies", [])]
+        extra_subjects = [c.lower() for c in filters.get("excluded_mega_subjects", [])]
+        self._excluded_mega_cpg = EXCLUDED_MEGA_CPG + extra_mega_cpg
+        self._excluded_subjects = EXCLUDED_MEGA_SUBJECTS + extra_subjects
 
     # ── Abstract interface ────────────────────────────────────────────────────
 
@@ -89,14 +233,22 @@ class BaseScraper(ABC):
         published_date: datetime,
         event_type: Optional[EventType] = None,
         query: Optional[str] = None,
+        industry_hint: Optional[str] = None,
     ) -> Optional[TriggerEvent]:
         """
         Build and validate a TriggerEvent. Returns None if the event fails
         ICP filters (public company, non-US, not CPG-relevant).
         """
         combined = f"{title} {description}".lower()
+        company = self._extract_company(title)
 
         if self.exclude_public and self._is_public_company(combined):
+            return None
+
+        # Mega retailers / corps are only disqualifying when they're the
+        # SUBJECT of the article. A mid-market CPG brand entering Meijer /
+        # Target / Whole Foods is a valid signal.
+        if self._is_excluded_subject(title, company, combined):
             return None
 
         if self._is_excluded_location(combined):
@@ -110,6 +262,7 @@ class BaseScraper(ABC):
             return None
 
         score = self._relevance_score(combined, event_type, keywords_hit)
+        industry = self._classify_industry(combined, industry_hint)
 
         from ..models import EventSource
         source_enum = EventSource.OTHER
@@ -122,8 +275,9 @@ class BaseScraper(ABC):
             url=url,
             published_date=published_date,
             source_name=source_name,
-            company_name=self._extract_company(title),
+            company_name=company,
             description=description[:2000] if description else "",
+            industry=industry,
             person_name=self._extract_person(title, event_type),
             person_title=self._extract_person_title(title, event_type),
             funding_round=self._extract_funding_round(combined),
@@ -136,11 +290,45 @@ class BaseScraper(ABC):
     # ── Filtering ─────────────────────────────────────────────────────────────
 
     def _is_public_company(self, text: str) -> bool:
+        """True if the article is clearly about a publicly traded company."""
+        if PUBLIC_TICKER_REGEX.search(text):
+            return True
         for indicator in PUBLIC_COMPANY_INDICATORS:
             if indicator in text:
                 return True
-        for company in self._excluded_companies:
-            if company in f" {text} ":
+        padded = f" {text} "
+        for company in self._excluded_mega_cpg:
+            if company in padded:
+                return True
+        return False
+
+    def _is_excluded_subject(
+        self, title: str, company: str, text: str
+    ) -> bool:
+        """
+        True if the leading company / subject of the article is a mega
+        retailer or major corporation. Preserves articles where a small CPG
+        brand is *entering* one of these retailers (the signal we want).
+        """
+        title_lower = (title or "").lower()
+        company_lower = (company or "").lower().strip()
+
+        # If the article explicitly frames a retail entry ("X launches at
+        # Meijer"), keep it — the subject is the entering brand, not the
+        # retailer.
+        has_entry_signal = any(sig in text for sig in RETAIL_ENTRY_SIGNALS)
+
+        for subject in self._excluded_subjects:
+            # Match on the extracted company name first (most precise).
+            if company_lower and subject in company_lower:
+                return True
+            # Fall back to checking the opening 60 chars of the title, which
+            # catches cases where company extraction missed. Skip this
+            # fallback when the article looks like a retail-entry story.
+            if has_entry_signal:
+                continue
+            leading = title_lower[:60]
+            if subject in leading:
                 return True
         return False
 
@@ -149,6 +337,24 @@ class BaseScraper(ABC):
             if loc in text:
                 return True
         return False
+
+    def _classify_industry(
+        self, text: str, hint: Optional[str] = None
+    ) -> str:
+        """Return an industry key (e.g. 'food_beverage'). Falls back to a
+        source-provided hint (RSS feed category) and finally 'other_cpg'."""
+        scores = {
+            key: sum(1 for kw in kws if kw in text)
+            for key, kws in INDUSTRY_KEYWORDS.items()
+        }
+        best_key = max(scores, key=lambda k: scores[k])
+        if scores[best_key] > 0:
+            return best_key
+        if hint:
+            mapped = RSS_CATEGORY_TO_INDUSTRY.get(hint.strip().lower())
+            if mapped:
+                return mapped
+        return "other_cpg"
 
     def _is_cpg_relevant(self, text: str) -> bool:
         cpg_terms = [
