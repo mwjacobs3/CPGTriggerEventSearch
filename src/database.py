@@ -94,18 +94,12 @@ class SupabaseManager:
         if not client:
             return []
         try:
-            cutoff = (
-                datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            )
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
             resp = (
                 client.table("events")
                 .select("*")
-                .gte(
-                    "discovered_at",
-                    datetime.utcnow().replace(
-                        hour=datetime.utcnow().hour - min(hours, 23)
-                    ).isoformat(),
-                )
+                .gte("discovered_at", cutoff)
                 .order("discovered_at", desc=True)
                 .limit(500)
                 .execute()
