@@ -85,6 +85,15 @@ st.markdown(
     .status-out          { background: #fee2e2; color: #991b1b; }
     .status-not-relevant { background: #f3f4f6; color: #6b7280; }
 
+    .score-badge {
+        padding: 0.25rem 0.6rem; border-radius: 50px;
+        font-size: 0.7rem; font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .score-hot  { background: #fecaca; color: #991b1b; }   /* ≥75 — hottest DOSS prospects */
+    .score-warm { background: #fed7aa; color: #9a3412; }   /* 50–74 */
+    .score-cool { background: #e0e7ff; color: #3730a3; }   /* <50  */
+
     .event-title {
         font-size: 1rem; font-weight: 600; color: #1a1a2e;
         margin: 0.5rem 0; line-height: 1.4;
@@ -215,38 +224,53 @@ def get_supabase_client():
     return create_client(url, key)
 
 
-def load_events(days: int = 30, search: str | None = None) -> pd.DataFrame:
+@st.cache_data(ttl=300, show_spinner="Loading leads from Supabase…")
+def _fetch_events(days: int) -> pd.DataFrame:
+    """Fetch raw events from Supabase. Cached for 5 minutes to avoid
+    refetching on every filter/selectbox interaction."""
     client = get_supabase_client()
     if not client:
         return pd.DataFrame()
 
     try:
-        query = client.table("events").select("*")
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-        query = query.gte("discovered_at", cutoff_date)
-        response = query.order("discovered_at", desc=True).limit(2000).execute()
-
+        response = (
+            client.table("events")
+            .select("*")
+            .gte("discovered_at", cutoff_date)
+            .order("discovered_at", desc=True)
+            .limit(2000)
+            .execute()
+        )
         if not response.data:
             return pd.DataFrame()
-
-        df = pd.DataFrame(response.data)
-
-        if search:
-            search_lower = search.lower()
-            mask = (
-                df["title"].fillna("").str.lower().str.contains(search_lower, na=False)
-                | df["company_name"].fillna("").str.lower().str.contains(search_lower, na=False)
-                | df["description"].fillna("").str.lower().str.contains(search_lower, na=False)
-            )
-            df = df[mask]
-
-        df = df.rename(columns={"source_url": "url", "discovered_at": "discovered_date"})
-        df["lead_status"] = df["lead_status"].fillna("NEW")
-        return df
-
+        return pd.DataFrame(response.data)
     except Exception as exc:
         st.error(f"Error loading events: {exc}")
         return pd.DataFrame()
+
+
+def load_events(days: int = 30, search: str | None = None) -> pd.DataFrame:
+    df = _fetch_events(days).copy()
+    if df.empty:
+        return df
+
+    if search:
+        search_lower = search.lower()
+        mask = (
+            df["title"].fillna("").str.lower().str.contains(search_lower, na=False)
+            | df["company_name"].fillna("").str.lower().str.contains(search_lower, na=False)
+            | df["description"].fillna("").str.lower().str.contains(search_lower, na=False)
+        )
+        df = df[mask]
+
+    df = df.rename(columns={"source_url": "url", "discovered_at": "discovered_date"})
+    df["lead_status"] = df["lead_status"].fillna("NEW")
+    if "relevance_score" in df.columns:
+        df["relevance_score"] = pd.to_numeric(df["relevance_score"], errors="coerce").fillna(0)
+    else:
+        df["relevance_score"] = 0
+    return df
 
 
 def load_source_statuses() -> pd.DataFrame:
@@ -280,10 +304,21 @@ def update_lead_status(event_id: str, status: str, notes: str = "") -> bool:
             if notes is not None:
                 data["notes"] = notes
             client.table("events").update(data).eq("id", event_id).execute()
+        _fetch_events.clear()  # bust cache so the card disappears on rerun
         return True
     except Exception as exc:
         st.error(f"Error updating status: {exc}")
         return False
+
+
+def _score_badge(score: float) -> str:
+    """Return HTML for a DOSS priority badge. ≥75 = hot, 50-74 = warm, <50 = cool."""
+    try:
+        s = float(score or 0)
+    except (TypeError, ValueError):
+        s = 0
+    cls = "score-hot" if s >= 75 else "score-warm" if s >= 50 else "score-cool"
+    return f'<span class="score-badge {cls}">🎯 {int(s)}</span>'
 
 
 def render_metric_card(icon: str, value: int, label: str, color: str) -> None:
@@ -325,6 +360,7 @@ def render_event_card(row, event_config) -> None:
 
     status_cfg = STATUS_CONFIG.get(status, STATUS_CONFIG["NEW"])
     badge_class = event_config.get("badge_class", "badge-other")
+    score_badge_html = _score_badge(row.get("relevance_score", 0))
 
     # Build supplemental line: person name, funding round, or location
     extra_html = ""
@@ -343,6 +379,7 @@ def render_event_card(row, event_config) -> None:
                 <div class="event-card-header">
                     <span class="event-type-badge {badge_class}">{event_config['icon']} {event_config['label']}</span>
                     <span class="status-badge {status_cfg['class']}">{status_cfg['label']}</span>
+                    {score_badge_html}
                 </div>
                 <div class="event-title">{title}</div>
                 <div class="event-company"><span>🏢</span><span>{company}</span></div>
@@ -394,6 +431,12 @@ def render_event_card(row, event_config) -> None:
 
 def render_event_section(df, event_type, event_config) -> None:
     type_df = df[df["event_type"] == event_type]
+    # DOSS priority: hottest signals first, recency as tiebreaker.
+    if not type_df.empty and "relevance_score" in type_df.columns:
+        type_df = type_df.sort_values(
+            by=["relevance_score", "discovered_date"],
+            ascending=[False, False],
+        )
     full_label = event_config.get("full_label", event_config["label"])
 
     st.markdown(
@@ -487,6 +530,9 @@ def main() -> None:
     # Sidebar filters
     st.sidebar.markdown("### 🎛️ Filters")
     days = st.sidebar.slider("Time Range (days)", 1, 90, 30)
+    if st.sidebar.button("🔄 Refresh data", use_container_width=True, help="Bypass the 5-min cache"):
+        _fetch_events.clear()
+        st.rerun()
 
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     search = st.text_input(
@@ -594,6 +640,11 @@ def main() -> None:
             for tab, status_key in zip(tabs, tab_keys):
                 with tab:
                     status_df = classified_df[classified_df["lead_status"] == status_key]
+                    if "relevance_score" in status_df.columns:
+                        status_df = status_df.sort_values(
+                            by=["relevance_score", "discovered_date"],
+                            ascending=[False, False],
+                        )
                     for _, row in status_df.iterrows():
                         cfg = EVENT_TYPES.get(row.get("event_type", "other"), EVENT_TYPES["other"])
                         render_event_card(row, cfg)
