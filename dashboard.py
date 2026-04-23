@@ -414,36 +414,90 @@ def render_metric_card(icon: str, value: int, label: str, color: str) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
+def _safe_str(value, default: str = "") -> str:
+    """Coerce a row value to a display string, treating None/NaN as default.
+
+    pandas converts SQL NULLs to float('nan'), and `NaN or ""` returns NaN
+    (NaN is truthy in Python) — so the usual `row.get("x", "") or ""` pattern
+    leaks NaN downstream and crashes .split()/.replace(). This helper collapses
+    None, NaN, and pandas NA to the default string.
+    """
+    if value is None:
+        return default
+    try:
+        if pd.isna(value):
+            return default
+    except (TypeError, ValueError):
+        pass
+    return str(value)
+
+
+def _safe_bool(value) -> bool:
+    """Coerce a row value to a real bool, treating None/NaN/'' as False."""
+    if value is None or value == "":
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(value)
+
+
+def _link(url: str, label: str) -> str:
+    """Render an external-link <a> tag for the enrichment panel."""
+    href = url if url.startswith("http") else f"https://{url}"
+    return f'<a href="{href}" target="_blank">{label}</a>'
+
+
 def render_event_card(row, event_config) -> None:
-    status = row.get("lead_status", "NEW") or "NEW"
-    title = str(row.get("title", ""))[:140]
-    company = row.get("company_name") or "Unknown Company"
-    location = row.get("company_location", "") or ""
-    country = row.get("company_country", "") or ""
-    is_us = row.get("is_us_company", None)
-    person_name = row.get("person_name", "") or ""
-    person_title = row.get("person_title", "") or ""
-    founder_name = row.get("founder_name", "") or ""
-    funding_round = row.get("funding_round", "") or ""
-    funding_amount = row.get("funding_amount", "") or ""
-    industry_key = row.get("industry", "") or ""
+    status = _safe_str(row.get("lead_status"), "NEW") or "NEW"
+    title = _safe_str(row.get("title"))[:140]
+    company = _safe_str(row.get("company_name")) or "Unknown Company"
+    location = _safe_str(row.get("company_location"))
+    country = _safe_str(row.get("company_country"))
+    is_us_raw = row.get("is_us_company", None)
+    # pandas may store booleans from Supabase as object/NaN-laden; normalize
+    # to strict True/False/None so the 3-branch region badge logic works.
+    if is_us_raw is None or (isinstance(is_us_raw, float) and pd.isna(is_us_raw)):
+        is_us = None
+    elif is_us_raw in (True, "true", "True", 1):
+        is_us = True
+    elif is_us_raw in (False, "false", "False", 0):
+        is_us = False
+    else:
+        is_us = None
+    person_name = _safe_str(row.get("person_name"))
+    person_title = _safe_str(row.get("person_title"))
+    founder_name = _safe_str(row.get("founder_name"))
+    funding_round = _safe_str(row.get("funding_round"))
+    funding_amount = _safe_str(row.get("funding_amount"))
+    industry_key = _safe_str(row.get("industry"))
     published = row.get("published_date", "")
 
-    # Enrichment fields (migration 006)
-    website          = row.get("company_website", "") or ""
-    company_linkedin = row.get("company_linkedin", "") or ""
-    founder_linkedin = row.get("founder_linkedin", "") or ""
-    hq_city          = row.get("hq_city", "") or ""
-    hq_state         = row.get("hq_state", "") or ""
-    founding_year    = row.get("founding_year", None)
-    employee_count   = row.get("employee_count", "") or ""
-    total_funding    = row.get("total_funding", "") or ""
-    retail_doors_raw = row.get("retail_doors", "") or ""
-    sku_count        = row.get("sku_count", "") or ""
-    ops_pain         = bool(row.get("ops_pain_signal", False))
-    tech_stack_raw   = row.get("tech_stack", "") or ""
-    three_pl         = bool(row.get("three_pl_mention", False))
-    channel_mix      = row.get("channel_mix", "") or ""
+    # Enrichment fields (migration 006) — defensive against NaN on rows that
+    # were ingested before the columns existed.
+    website          = _safe_str(row.get("company_website"))
+    company_linkedin = _safe_str(row.get("company_linkedin"))
+    founder_linkedin = _safe_str(row.get("founder_linkedin"))
+    hq_city          = _safe_str(row.get("hq_city"))
+    hq_state         = _safe_str(row.get("hq_state"))
+    founding_year_raw = row.get("founding_year", None)
+    founding_year = None
+    if founding_year_raw is not None:
+        try:
+            if not pd.isna(founding_year_raw):
+                founding_year = int(founding_year_raw)
+        except (TypeError, ValueError):
+            founding_year = None
+    employee_count   = _safe_str(row.get("employee_count"))
+    total_funding    = _safe_str(row.get("total_funding"))
+    retail_doors_raw = _safe_str(row.get("retail_doors"))
+    sku_count        = _safe_str(row.get("sku_count"))
+    ops_pain         = _safe_bool(row.get("ops_pain_signal"))
+    tech_stack_raw   = _safe_str(row.get("tech_stack"))
+    three_pl         = _safe_bool(row.get("three_pl_mention"))
+    channel_mix      = _safe_str(row.get("channel_mix"))
 
     date_display = ""
     if published:
@@ -542,10 +596,6 @@ def render_event_card(row, event_config) -> None:
                     hq_line = hq_city
                 elif hq_state:
                     hq_line = hq_state
-
-                def _link(url: str, label: str) -> str:
-                    href = url if url.startswith("http") else f"https://{url}"
-                    return f'<a href="{href}" target="_blank">{label}</a>'
 
                 outreach_parts = []
                 if website:
