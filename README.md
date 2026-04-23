@@ -111,7 +111,8 @@ CPGTriggerEventSearch/
 │   ├── 002_add_event_columns.sql   # exec hire + funding detail fields
 │   ├── 003_priority_index.sql      # status/score index for DOSS triage
 │   ├── 004_add_industry_column.sql # ICP industry slice
-│   └── 005_add_country_and_founder.sql # US/Intl tag + founder_name
+│   ├── 005_add_country_and_founder.sql # US/Intl tag + founder_name
+│   └── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
 └── src/
     ├── main.py                      # orchestrator + scheduler + Supabase sync
     ├── models.py                    # TriggerEvent dataclass
@@ -149,6 +150,21 @@ relevance score, while international leads are kept visible (but scored lower)
 so an EU or Canadian brand entering US retail still surfaces. Founders are
 auto-extracted from article copy (“founded by …”, “Co-Founder & CEO X”) so the
 lead card points straight at the decision-maker to reach out to.
+
+### Per-lead enrichment (migration 006)
+
+Each event is parsed on three axes so sales can qualify before clicking through:
+
+| Axis | Fields |
+|---|---|
+| **Outreach** | `company_website` · `company_linkedin` · `founder_linkedin` · `hq_city` · `hq_state` |
+| **Viability** | `founding_year` · `employee_count` · `total_funding` (cumulative raised) · `retail_doors` (distinct major chains mentioned) · `sku_count` |
+| **DOSS fit** | `ops_pain_signal` (fulfillment/inventory/supply-chain pain language) · `three_pl_mention` (brand outgrew self-fulfillment) · `tech_stack` (Shopify/NetSuite/SAP/…) · `channel_mix` (DTC · DTC+Retail · Retail) |
+
+Ops-pain and 3PL flags each add +10–15 to the relevance score. Each major
+retailer mentioned in a retail expansion article adds +8 (capped). The
+dashboard sidebar has checkboxes to show **only** ops-pain or 3PL leads, plus
+a channel-mix multiselect.
 
 ### 1. Trade-press RSS (`RSSFeedScraper`, 37 feeds from `config.yaml`)
 

@@ -66,9 +66,21 @@ _HTML_TEMPLATE = """
   {% for e in items %}
   <div class="card">
     <a href="{{ e.url }}" target="_blank">{{ e.title[:120] }}</a>
-    {% if e.company_name %}<div class="company">🏢 {{ e.company_name }}{% if e.is_us_company == True %} &nbsp;·&nbsp; 🇺🇸 US{% elif e.is_us_company == False %} &nbsp;·&nbsp; 🌍 {{ e.company_country or 'International' }}{% endif %}{% if e.funding_round %} &nbsp;·&nbsp; {{ e.funding_round }}{% endif %}{% if e.funding_amount %} &nbsp;·&nbsp; {{ e.funding_amount }}{% endif %}</div>{% endif %}
-    {% if e.founder_name %}<div class="company">🌱 Founder: {{ e.founder_name }}</div>{% endif %}
+    {% if e.company_name %}<div class="company">🏢 {{ e.company_name }}{% if e.is_us_company == True %} &nbsp;·&nbsp; 🇺🇸 US{% elif e.is_us_company == False %} &nbsp;·&nbsp; 🌍 {{ e.company_country or 'International' }}{% endif %}{% if e.hq_city and e.hq_state %} &nbsp;·&nbsp; 📍 {{ e.hq_city }}, {{ e.hq_state }}{% endif %}{% if e.funding_round %} &nbsp;·&nbsp; {{ e.funding_round }}{% endif %}{% if e.funding_amount %} &nbsp;·&nbsp; {{ e.funding_amount }}{% endif %}</div>{% endif %}
+    {% if e.founder_name %}<div class="company">🌱 Founder: {{ e.founder_name }}{% if e.founder_linkedin %} &nbsp;·&nbsp; <a href="https://{{ e.founder_linkedin }}">LinkedIn</a>{% endif %}</div>{% endif %}
     {% if e.person_name %}<div class="company">👤 {{ e.person_name }}{% if e.person_title %} — {{ e.person_title }}{% endif %}</div>{% endif %}
+    {% if e.founding_year or e.total_funding or e.employee_count %}<div class="company">📈
+      {% if e.founding_year %}Founded {{ e.founding_year }}{% endif %}
+      {% if e.employee_count %} &nbsp;·&nbsp; {{ e.employee_count }} employees{% endif %}
+      {% if e.total_funding %} &nbsp;·&nbsp; {{ e.total_funding }} raised to date{% endif %}
+    </div>{% endif %}
+    {% if e.ops_pain_signal or e.three_pl_mention or e.channel_mix %}<div class="company">🎯
+      {% if e.ops_pain_signal %}<span class="badge badge-exec">Ops Pain</span>{% endif %}
+      {% if e.three_pl_mention %}<span class="badge badge-retail">3PL</span>{% endif %}
+      {% if e.channel_mix %}<span class="badge badge-launch">{{ e.channel_mix|replace('_PLUS_', ' + ')|replace('_', ' ') }}</span>{% endif %}
+    </div>{% endif %}
+    {% if e.retail_doors %}<div class="company">🏪 In: {{ e.retail_doors|join(', ') }}</div>{% endif %}
+    {% if e.company_website %}<div class="company">🔗 <a href="https://{{ e.company_website }}">{{ e.company_website }}</a></div>{% endif %}
     <div class="meta">{{ e.source_name }} &nbsp;·&nbsp; {{ e.published_date.strftime('%b %d, %Y') if e.published_date else '' }}</div>
     {% if e.description %}<div class="summary">{{ e.description[:200] }}{% if e.description|length > 200 %}…{% endif %}</div>{% endif %}
   </div>

@@ -43,6 +43,26 @@ class TriggerEvent:
     is_us_company: Optional[bool] = None    # True=US, False=Intl, None=Unknown
     industry: Optional[str] = None     # DOSS ICP slice: food_beverage, health_beauty, etc.
 
+    # Outreach enrichment
+    company_website: Optional[str] = None      # apex domain, e.g. "olipop.com"
+    company_linkedin: Optional[str] = None     # linkedin.com/company/<slug>
+    founder_linkedin: Optional[str] = None     # linkedin.com/in/<slug>
+    hq_city: Optional[str] = None
+    hq_state: Optional[str] = None             # 2-letter US state abbreviation
+
+    # Viability signals
+    founding_year: Optional[int] = None
+    employee_count: Optional[str] = None       # raw string, e.g. "40", "100-person"
+    total_funding: Optional[str] = None        # "$25M to date"
+    retail_doors: list = field(default_factory=list)   # retailers the brand is in
+    sku_count: Optional[str] = None
+
+    # DOSS fit signals
+    ops_pain_signal: bool = False              # article mentions supply-chain pain
+    tech_stack: list = field(default_factory=list)     # "shopify", "netsuite", etc.
+    three_pl_mention: bool = False             # 3PL / co-packer / fulfillment partner
+    channel_mix: Optional[str] = None          # "DTC" | "DTC_PLUS_RETAIL" | "RETAIL"
+
     # Article body
     description: Optional[str] = None
 
@@ -74,6 +94,20 @@ class TriggerEvent:
             "company_country": self.company_country or "",
             "is_us_company": self.is_us_company,
             "industry": self.industry or "",
+            "company_website": self.company_website or "",
+            "company_linkedin": self.company_linkedin or "",
+            "founder_linkedin": self.founder_linkedin or "",
+            "hq_city": self.hq_city or "",
+            "hq_state": self.hq_state or "",
+            "founding_year": self.founding_year,
+            "employee_count": self.employee_count or "",
+            "total_funding": self.total_funding or "",
+            "retail_doors": ",".join(self.retail_doors),
+            "sku_count": self.sku_count or "",
+            "ops_pain_signal": self.ops_pain_signal,
+            "tech_stack": ",".join(self.tech_stack),
+            "three_pl_mention": self.three_pl_mention,
+            "channel_mix": self.channel_mix or "",
             "description": (self.description or "")[:2000],
             "source_name": self.source_name or "",
             "source_url": self.url,

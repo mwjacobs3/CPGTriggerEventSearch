@@ -178,13 +178,32 @@ class TriggerEventMonitor:
                 region = "US" if e.is_us_company is True else (
                     e.company_country or "Intl" if e.is_us_company is False else "?"
                 )
-                print(f"     Company : {e.company_name} [{region}]")
+                hq = f" — {e.hq_city}, {e.hq_state}" if e.hq_city and e.hq_state else ""
+                print(f"     Company : {e.company_name} [{region}]{hq}")
             if e.founder_name:
                 print(f"     Founder : {e.founder_name}")
             if e.person_name:
                 print(f"     Person  : {e.person_name} — {e.person_title or ''}")
             if e.funding_round:
                 print(f"     Round   : {e.funding_round} {e.funding_amount or ''}")
+            viability = []
+            if e.founding_year:
+                viability.append(f"founded {e.founding_year}")
+            if e.total_funding:
+                viability.append(f"{e.total_funding} total")
+            if e.employee_count:
+                viability.append(f"{e.employee_count} employees")
+            if viability:
+                print(f"     Company : {' · '.join(viability)}")
+            fit = []
+            if e.ops_pain_signal:
+                fit.append("ops pain")
+            if e.three_pl_mention:
+                fit.append("3PL")
+            if e.channel_mix:
+                fit.append(e.channel_mix.lower().replace("_", " "))
+            if fit:
+                print(f"     Fit     : {', '.join(fit)}")
             print(f"     Score   : {e.relevance_score:.0f}/100")
             print(f"     Source  : {e.source_name}")
             print(f"     URL     : {e.url}")
