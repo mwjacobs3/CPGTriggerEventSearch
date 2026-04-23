@@ -39,14 +39,17 @@ class TriggerEvent:
     # Company intel
     company_name: Optional[str] = None
     company_location: Optional[str] = None
+    company_country: Optional[str] = None   # "US" | "International" | None (unknown)
+    is_us_company: Optional[bool] = None    # True=US, False=Intl, None=Unknown
     industry: Optional[str] = None     # DOSS ICP slice: food_beverage, health_beauty, etc.
 
     # Article body
     description: Optional[str] = None
 
-    # Exec hire specifics
-    person_name: Optional[str] = None
+    # People
+    person_name: Optional[str] = None    # Exec hire specifics
     person_title: Optional[str] = None
+    founder_name: Optional[str] = None   # Founder mentioned in the article
 
     # Funding specifics
     funding_amount: Optional[str] = None
@@ -68,6 +71,8 @@ class TriggerEvent:
             "title": self.title,
             "company_name": self.company_name or "",
             "company_location": self.company_location or "",
+            "company_country": self.company_country or "",
+            "is_us_company": self.is_us_company,
             "industry": self.industry or "",
             "description": (self.description or "")[:2000],
             "source_name": self.source_name or "",
@@ -76,6 +81,7 @@ class TriggerEvent:
             "discovered_at": self.discovered_date.isoformat(),
             "person_name": self.person_name or "",
             "person_title": self.person_title or "",
+            "founder_name": self.founder_name or "",
             "funding_amount": self.funding_amount or "",
             "funding_round": self.funding_round or "",
             "matched_keywords": ",".join(self.matched_keywords),

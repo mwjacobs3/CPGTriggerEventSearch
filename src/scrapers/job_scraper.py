@@ -161,8 +161,8 @@ class JobScraper(BaseScraper):
                 if self.exclude_public and self._is_public_company(combined):
                     continue
 
-                if self._is_excluded_location(combined):
-                    continue
+                # Location is tagged (US vs International) in _make_event,
+                # not filtered — international leads are kept but scored lower.
 
                 published = self._parse_date(
                     entry.get("published", "") or entry.get("updated", "")

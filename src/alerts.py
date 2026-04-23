@@ -66,7 +66,8 @@ _HTML_TEMPLATE = """
   {% for e in items %}
   <div class="card">
     <a href="{{ e.url }}" target="_blank">{{ e.title[:120] }}</a>
-    {% if e.company_name %}<div class="company">🏢 {{ e.company_name }}{% if e.funding_round %} &nbsp;·&nbsp; {{ e.funding_round }}{% endif %}{% if e.funding_amount %} &nbsp;·&nbsp; {{ e.funding_amount }}{% endif %}</div>{% endif %}
+    {% if e.company_name %}<div class="company">🏢 {{ e.company_name }}{% if e.is_us_company == True %} &nbsp;·&nbsp; 🇺🇸 US{% elif e.is_us_company == False %} &nbsp;·&nbsp; 🌍 {{ e.company_country or 'International' }}{% endif %}{% if e.funding_round %} &nbsp;·&nbsp; {{ e.funding_round }}{% endif %}{% if e.funding_amount %} &nbsp;·&nbsp; {{ e.funding_amount }}{% endif %}</div>{% endif %}
+    {% if e.founder_name %}<div class="company">🌱 Founder: {{ e.founder_name }}</div>{% endif %}
     {% if e.person_name %}<div class="company">👤 {{ e.person_name }}{% if e.person_title %} — {{ e.person_title }}{% endif %}</div>{% endif %}
     <div class="meta">{{ e.source_name }} &nbsp;·&nbsp; {{ e.published_date.strftime('%b %d, %Y') if e.published_date else '' }}</div>
     {% if e.description %}<div class="summary">{{ e.description[:200] }}{% if e.description|length > 200 %}…{% endif %}</div>{% endif %}
@@ -87,7 +88,8 @@ _TEXT_TEMPLATE = """CPG TRIGGER EVENTS — DOSS ICP
 {% for e in items %}• {{ e.title }}
   {{ e.url }}
   {{ e.source_name }} | {{ e.published_date.strftime('%b %d, %Y') if e.published_date else '' }}
-{% if e.company_name %}  Company: {{ e.company_name }}{% endif %}
+{% if e.company_name %}  Company: {{ e.company_name }}{% if e.is_us_company == True %} [US]{% elif e.is_us_company == False %} [{{ e.company_country or 'International' }}]{% endif %}{% endif %}
+{% if e.founder_name %}  Founder: {{ e.founder_name }}{% endif %}
 {% endfor %}{% endif %}{% endfor %}"""
 
 
@@ -117,6 +119,14 @@ class AlertManager:
         grouped: dict[EventType, list[TriggerEvent]] = {et: [] for et in EventType}
         for e in events:
             grouped[e.event_type].append(e)
+
+        # DOSS priority: US leads first in every section, then by relevance.
+        def _rank(ev: TriggerEvent) -> tuple[int, float]:
+            us_rank = 0 if ev.is_us_company is True else (2 if ev.is_us_company is False else 1)
+            return (us_rank, -(ev.relevance_score or 0))
+
+        for et in grouped:
+            grouped[et].sort(key=_rank)
 
         date_str   = datetime.now().strftime("%B %d, %Y %H:%M")
         categories = _CATEGORY_META
