@@ -414,34 +414,67 @@ def render_metric_card(icon: str, value: int, label: str, color: str) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _safe_str(value, default: str = "") -> str:
-    """Coerce a row value to a display string, treating None/NaN as default.
+def _is_null(value) -> bool:
+    """True if value is None, NaN, pd.NA, or otherwise missing.
 
-    pandas converts SQL NULLs to float('nan'), and `NaN or ""` returns NaN
-    (NaN is truthy in Python) — so the usual `row.get("x", "") or ""` pattern
-    leaks NaN downstream and crashes .split()/.replace(). This helper collapses
-    None, NaN, and pandas NA to the default string.
+    Belt-and-suspenders wrapper: pd.isna(pd.NA) returns True but
+    `pd.NA == ""` / `bool(pd.NA)` raise TypeError, so we can't rely on the
+    usual `value is None or value == ""` shortcut.
     """
     if value is None:
-        return default
+        return True
     try:
-        if pd.isna(value):
-            return default
+        result = pd.isna(value)
     except (TypeError, ValueError):
-        pass
+        return False
+    # pd.isna on a Series/array returns an array; on a scalar returns bool
+    if isinstance(result, bool):
+        return result
+    try:
+        return bool(result)
+    except (TypeError, ValueError):
+        return False
+
+
+def _safe_str(value, default: str = "") -> str:
+    """Coerce a row value to a display string, treating None/NaN/pd.NA as default.
+
+    pandas converts SQL NULLs to float('nan') (or pd.NA for nullable dtypes),
+    and `NaN or ""` returns NaN (NaN is truthy in Python) — so the usual
+    `row.get("x", "") or ""` pattern leaks null into str ops downstream.
+    """
+    if _is_null(value):
+        return default
+    if isinstance(value, str):
+        return value
     return str(value)
 
 
 def _safe_bool(value) -> bool:
-    """Coerce a row value to a real bool, treating None/NaN/'' as False."""
-    if value is None or value == "":
+    """Coerce a row value to a real bool. None / NaN / pd.NA / '' → False."""
+    if _is_null(value):
         return False
+    if isinstance(value, str):
+        return value.lower() in ("true", "t", "1", "yes")
     try:
-        if pd.isna(value):
-            return False
+        return bool(value)
     except (TypeError, ValueError):
-        pass
-    return bool(value)
+        return False
+
+
+def _safe_tribool(value):
+    """Normalize to strict True / False / None for the 3-state region badge."""
+    if _is_null(value):
+        return None
+    if value is True or value in ("true", "True", "TRUE", 1, "1"):
+        return True
+    if value is False or value in ("false", "False", "FALSE", 0, "0"):
+        return False
+    # Numeric coercion for numpy booleans and similar
+    try:
+        return bool(int(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _link(url: str, label: str) -> str:
@@ -456,17 +489,7 @@ def render_event_card(row, event_config) -> None:
     company = _safe_str(row.get("company_name")) or "Unknown Company"
     location = _safe_str(row.get("company_location"))
     country = _safe_str(row.get("company_country"))
-    is_us_raw = row.get("is_us_company", None)
-    # pandas may store booleans from Supabase as object/NaN-laden; normalize
-    # to strict True/False/None so the 3-branch region badge logic works.
-    if is_us_raw is None or (isinstance(is_us_raw, float) and pd.isna(is_us_raw)):
-        is_us = None
-    elif is_us_raw in (True, "true", "True", 1):
-        is_us = True
-    elif is_us_raw in (False, "false", "False", 0):
-        is_us = False
-    else:
-        is_us = None
+    is_us = _safe_tribool(row.get("is_us_company"))
     person_name = _safe_str(row.get("person_name"))
     person_title = _safe_str(row.get("person_title"))
     founder_name = _safe_str(row.get("founder_name"))
@@ -483,11 +506,10 @@ def render_event_card(row, event_config) -> None:
     hq_city          = _safe_str(row.get("hq_city"))
     hq_state         = _safe_str(row.get("hq_state"))
     founding_year_raw = row.get("founding_year", None)
-    founding_year = None
-    if founding_year_raw is not None:
+    founding_year: int | None = None
+    if not _is_null(founding_year_raw):
         try:
-            if not pd.isna(founding_year_raw):
-                founding_year = int(founding_year_raw)
+            founding_year = int(founding_year_raw)
         except (TypeError, ValueError):
             founding_year = None
     employee_count   = _safe_str(row.get("employee_count"))
@@ -690,7 +712,10 @@ def render_event_section(df, event_type, event_config) -> None:
     if not type_df.empty and "relevance_score" in type_df.columns:
         sort_df = type_df.copy()
         if "is_us_company" in sort_df.columns:
-            sort_df["_us_rank"] = sort_df["is_us_company"].map({True: 0, False: 2}).fillna(1)
+            sort_df["_us_rank"] = sort_df["is_us_company"].apply(
+                lambda v: 0 if _safe_tribool(v) is True
+                else (2 if _safe_tribool(v) is False else 1)
+            )
             type_df = sort_df.sort_values(
                 by=["_us_rank", "relevance_score", "discovered_date"],
                 ascending=[True, False, False],
@@ -825,9 +850,9 @@ def main() -> None:
             ),
         )
         if region_choice == "US only":
-            df = df[df["is_us_company"] == True]  # noqa: E712
+            df = df[df["is_us_company"].apply(_safe_tribool) == True]  # noqa: E712
         elif region_choice == "International only":
-            df = df[df["is_us_company"] == False]  # noqa: E712
+            df = df[df["is_us_company"].apply(_safe_tribool) == False]  # noqa: E712
     else:
         region_choice = "All"
 
@@ -871,9 +896,9 @@ def main() -> None:
         help="Brand has outgrown self-fulfillment — ripe for a DOSS conversation.",
     )
     if only_ops_pain and "ops_pain_signal" in df.columns:
-        df = df[df["ops_pain_signal"] == True]  # noqa: E712
+        df = df[df["ops_pain_signal"].apply(_safe_bool)]
     if only_three_pl and "three_pl_mention" in df.columns:
-        df = df[df["three_pl_mention"] == True]  # noqa: E712
+        df = df[df["three_pl_mention"].apply(_safe_bool)]
 
     if "channel_mix" in df.columns:
         channel_options = [
@@ -908,7 +933,10 @@ def main() -> None:
     # the order via stable sort on relevance_score.
     if region_choice == "US priority" and "is_us_company" in df.columns:
         df = df.copy()
-        df["_us_rank"] = df["is_us_company"].map({True: 0, False: 2}).fillna(1)
+        df["_us_rank"] = df["is_us_company"].apply(
+            lambda v: 0 if _safe_tribool(v) is True
+            else (2 if _safe_tribool(v) is False else 1)
+        )
         df = df.sort_values(
             by=["_us_rank", "relevance_score", "discovered_date"],
             ascending=[True, False, False],
