@@ -118,12 +118,93 @@ TARGET_SIZE_SIGNALS = [
     "growing brand", "independent brand", "family-owned", "founder-led",
 ]
 
-# International exclusions — we want US-based companies
-EXCLUDED_LOCATIONS = [
-    "united kingdom", " uk ", "australia", " canada", "india",
-    "germany", "france", "china", "japan", "mexico", "brazil",
-    "europe", "european", "asia", "africa", "middle east",
+# Location signals — we FLAG rather than exclude. US companies are the
+# priority DOSS ICP (US-based supply chain / 3PL footprint), but an
+# international brand entering US retail or raising from US funds is still
+# a valid lead — it gets tagged "International" and scored lower.
+INTERNATIONAL_SIGNALS = [
+    "united kingdom", " uk ", " u.k.", "britain", "british", "london",
+    "australia", "australian", "sydney", "melbourne",
+    " canada", "canadian", "toronto", "vancouver", "montreal",
+    "india", "indian", "mumbai", "bangalore", "delhi",
+    "germany", "german", "berlin", "munich",
+    "france", "french", "paris",
+    "china", "chinese", "shanghai", "beijing",
+    "japan", "japanese", "tokyo",
+    "mexico", "mexican",
+    "brazil", "brazilian",
+    "europe", "european union", " eu ",
+    "asia-pacific", "apac", "asia pacific",
+    "africa", "african",
+    "middle east", "uae", "dubai", "saudi arabia",
+    "singapore", "hong kong", "south korea", "korean",
+    "ireland", "irish", "dublin",
+    "netherlands", "dutch", "amsterdam",
+    "spain", "spanish", "madrid", "barcelona",
+    "italy", "italian", "milan", "rome",
+    "sweden", "swedish", "stockholm",
+    "new zealand",
 ]
+
+# Explicit US signals: we look for these FIRST — if present, it's a US company
+# even if the article also mentions international markets (e.g. "US-based X
+# expands to Europe").
+US_SIGNALS = [
+    " u.s.", " u.s ", "u.s.-based", "us-based", "usa",
+    "united states", " american ", "america",
+    "stateside", "domestic market",
+]
+
+# US state names + abbreviations — presence strongly implies a US HQ or plant.
+US_STATES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana",
+    "maine", "maryland", "massachusetts", "michigan", "minnesota",
+    "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+    "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+    "west virginia", "wisconsin", "wyoming", "washington, d.c.",
+    "district of columbia",
+}
+
+# City, ST patterns like "Austin, TX" / "New York, NY"
+US_CITY_STATE_REGEX = re.compile(
+    r"\b[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?,\s*"
+    r"(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|"
+    r"MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|"
+    r"UT|VT|VA|WA|WV|WI|WY|DC)\b"
+)
+
+# ── Founder extraction patterns ──────────────────────────────────────────────
+# Applied to original-case text so the captured name is properly capitalized.
+# Run in order; first match wins.
+_FOUNDER_REGEXES = [
+    # "founded by Jane Doe" / "was founded by Jane Doe"
+    re.compile(r"[Ff]ounded\s+by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'’\-]+){1,2})"),
+    # "Founder & CEO Jane Doe" / "Co-Founder and CEO Jane Doe"
+    re.compile(
+        r"(?:[Cc]o-)?[Ff]ounder\s*(?:and|&|,)\s*(?:[Cc]o-)?(?:CEO|COO|CMO|CFO|President)\s+"
+        r"([A-Z][a-z]+(?:\s+[A-Z][a-z'’\-]+){1,2})"
+    ),
+    # "Jane Doe, founder" / "Jane Doe, co-founder and CEO"
+    re.compile(
+        r"([A-Z][a-z]+(?:\s+[A-Z][a-z'’\-]+){1,2}),\s+(?:the\s+)?(?:[Cc]o-)?[Ff]ounder"
+    ),
+    # "founder Jane Doe" / "co-founder Jane Doe" at clause start
+    re.compile(
+        r"(?:^|[.\s])(?:[Cc]o-)?[Ff]ounder\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'’\-]+){1,2})"
+    ),
+]
+
+# Tokens that look like capitalized names but are not people — avoid false
+# positives like "Founder CEO" or "Founder LLC".
+_FOUNDER_NAME_BLOCKLIST = {
+    "Ceo", "Coo", "Cmo", "Cfo", "Llc", "Inc", "Corp", "Company",
+    "President", "Partners", "Ventures", "Capital", "Holdings",
+}
 
 # Signals that the story is about a CPG brand *entering* a retailer rather
 # than about the retailer itself (so we can keep those even if a mega-
@@ -237,10 +318,13 @@ class BaseScraper(ABC):
     ) -> Optional[TriggerEvent]:
         """
         Build and validate a TriggerEvent. Returns None if the event fails
-        ICP filters (public company, non-US, not CPG-relevant).
+        ICP filters (public company, mega-cap, not CPG-relevant). Location
+        is TAGGED (US vs International) rather than filtered — international
+        companies are kept but scored lower so the US pipeline stays on top.
         """
-        combined = f"{title} {description}".lower()
-        company = self._extract_company(title)
+        original   = f"{title}\n{description or ''}"
+        combined   = original.lower()
+        company    = self._extract_company(title)
 
         if self.exclude_public and self._is_public_company(combined):
             return None
@@ -251,9 +335,6 @@ class BaseScraper(ABC):
         if self._is_excluded_subject(title, company, combined):
             return None
 
-        if self._is_excluded_location(combined):
-            return None
-
         if event_type is None:
             event_type = self._classify(combined)
 
@@ -261,8 +342,10 @@ class BaseScraper(ABC):
         if not keywords_hit and not self._is_cpg_relevant(combined):
             return None
 
-        score = self._relevance_score(combined, event_type, keywords_hit)
-        industry = self._classify_industry(combined, industry_hint)
+        is_us, country = self._detect_country(original, combined)
+        score          = self._relevance_score(combined, event_type, keywords_hit, is_us)
+        industry       = self._classify_industry(combined, industry_hint)
+        founder        = self._extract_founder(original)
 
         from ..models import EventSource
         source_enum = EventSource.OTHER
@@ -276,10 +359,13 @@ class BaseScraper(ABC):
             published_date=published_date,
             source_name=source_name,
             company_name=company,
+            company_country=country,
+            is_us_company=is_us,
             description=description[:2000] if description else "",
             industry=industry,
             person_name=self._extract_person(title, event_type),
             person_title=self._extract_person_title(title, event_type),
+            founder_name=founder,
             funding_round=self._extract_funding_round(combined),
             funding_amount=self._extract_funding_amount(combined),
             matched_keywords=keywords_hit,
@@ -333,10 +419,42 @@ class BaseScraper(ABC):
         return False
 
     def _is_excluded_location(self, text: str) -> bool:
-        for loc in EXCLUDED_LOCATIONS:
-            if loc in text:
-                return True
+        """Preserved for backwards compatibility — always returns False now.
+        Location is tagged via `_detect_country`, not filtered."""
         return False
+
+    def _detect_country(
+        self, original_text: str, lower_text: str
+    ) -> tuple[Optional[bool], Optional[str]]:
+        """
+        Classify a signal as US / International / Unknown.
+
+        Returns (is_us_company, country_label) where country_label is one of
+        "US", "International", or None. US signals take priority — a US-based
+        brand expanding to Europe should still be tagged US.
+        """
+        padded = f" {lower_text} "
+
+        # Strong US signals
+        for sig in US_SIGNALS:
+            if sig in padded:
+                return True, "US"
+
+        # US state names
+        for state in US_STATES:
+            if f" {state} " in padded or f" {state}," in padded:
+                return True, "US"
+
+        # "Austin, TX" style city/state (use original case — regex requires caps)
+        if US_CITY_STATE_REGEX.search(original_text):
+            return True, "US"
+
+        # International signals
+        for sig in INTERNATIONAL_SIGNALS:
+            if sig in padded:
+                return False, "International"
+
+        return None, None
 
     def _classify_industry(
         self, text: str, hint: Optional[str] = None
@@ -393,7 +511,11 @@ class BaseScraper(ABC):
     # ── Relevance scoring ─────────────────────────────────────────────────────
 
     def _relevance_score(
-        self, text: str, event_type: EventType, keywords_hit: list[str]
+        self,
+        text: str,
+        event_type: EventType,
+        keywords_hit: list[str],
+        is_us: Optional[bool] = None,
     ) -> float:
         score = min(len(keywords_hit) * 15, 60)  # up to 60 from keyword hits
 
@@ -410,6 +532,13 @@ class BaseScraper(ABC):
         # Penalty for very generic / low-signal articles
         if len(keywords_hit) == 0:
             score -= 20
+
+        # Territory bias: DOSS sells into US supply chains first. US
+        # companies get a bonus; international leads are kept but deprioritized.
+        if is_us is True:
+            score += 15
+        elif is_us is False:
+            score -= 25
 
         return min(max(score, 0), 100)
 
@@ -457,6 +586,27 @@ class BaseScraper(ABC):
             idx = lower.find(kw)
             if idx >= 0:
                 return title[idx : idx + 60].split(",")[0].strip()
+        return None
+
+    def _extract_founder(self, text: str) -> Optional[str]:
+        """Find a founder name in the article (title + description).
+
+        Runs for ALL event types, not just exec hires — a funding or launch
+        article that mentions the founder gives us a contact point.
+        """
+        if not text:
+            return None
+        for rx in _FOUNDER_REGEXES:
+            m = rx.search(text)
+            if not m:
+                continue
+            name = m.group(1).strip()
+            # Guard against capturing role titles as names
+            first_token = name.split()[0] if name else ""
+            if first_token in _FOUNDER_NAME_BLOCKLIST:
+                continue
+            if 4 <= len(name) <= 60:
+                return name
         return None
 
     def _extract_funding_round(self, text: str) -> Optional[str]:

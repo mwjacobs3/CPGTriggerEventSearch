@@ -106,7 +106,12 @@ CPGTriggerEventSearch/
 ├── .env.example
 ├── .streamlit/config.toml           # dashboard theme + server settings
 ├── .github/workflows/scraper.yml    # cron: every 4 hours
-├── supabase/migrations/001_init.sql # events + source_status + RLS
+├── supabase/migrations/
+│   ├── 001_init.sql                # events + source_status + RLS
+│   ├── 002_add_event_columns.sql   # exec hire + funding detail fields
+│   ├── 003_priority_index.sql      # status/score index for DOSS triage
+│   ├── 004_add_industry_column.sql # ICP industry slice
+│   └── 005_add_country_and_founder.sql # US/Intl tag + founder_name
 └── src/
     ├── main.py                      # orchestrator + scheduler + Supabase sync
     ├── models.py                    # TriggerEvent dataclass
@@ -138,7 +143,12 @@ to a Google News RSS feed (zero API keys needed) and, if configured, NewsAPI.
 ## Sources monitored
 
 Every 4-hour run pulls from **four** scrapers. All sources are filtered by the
-DOSS ICP rules in `config.yaml` (US-only, mid-market, excludes public mega-caps).
+DOSS ICP rules in `config.yaml` (mid-market, excludes public mega-caps). Region
+is **tagged, not filtered** — US companies are flagged 🇺🇸 and boosted in the
+relevance score, while international leads are kept visible (but scored lower)
+so an EU or Canadian brand entering US retail still surfaces. Founders are
+auto-extracted from article copy (“founded by …”, “Co-Founder & CEO X”) so the
+lead card points straight at the decision-maker to reach out to.
 
 ### 1. Trade-press RSS (`RSSFeedScraper`, 37 feeds from `config.yaml`)
 

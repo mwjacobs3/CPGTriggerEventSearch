@@ -133,6 +133,15 @@ st.markdown(
         border: 1px solid var(--doss-border);
     }
 
+    .region-badge {
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    .region-us   { background: #DCEAFB; color: #1E3A8A; }
+    .region-intl { background: #F3E8FF; color: #6B21A8; }
+    .region-unk  { background: #EEEEEA; color: #6B6B6B; }
+
     .score-badge {
         padding: 0.22rem 0.55rem; border-radius: 6px;
         font-size: 0.68rem; font-weight: 700;
@@ -392,8 +401,11 @@ def render_event_card(row, event_config) -> None:
     title = str(row.get("title", ""))[:140]
     company = row.get("company_name") or "Unknown Company"
     location = row.get("company_location", "") or ""
+    country = row.get("company_country", "") or ""
+    is_us = row.get("is_us_company", None)
     person_name = row.get("person_name", "") or ""
     person_title = row.get("person_title", "") or ""
+    founder_name = row.get("founder_name", "") or ""
     funding_round = row.get("funding_round", "") or ""
     funding_amount = row.get("funding_amount", "") or ""
     industry_key = row.get("industry", "") or ""
@@ -419,15 +431,31 @@ def render_event_card(row, event_config) -> None:
         f'<span class="industry-badge">🏷 {industry_label}</span>' if industry_label else ""
     )
 
-    # Build supplemental line: person name, funding round, or location
-    extra_html = ""
+    # Region badge: 🇺🇸 US vs 🌍 International vs unknown
+    if is_us is True:
+        region_html = '<span class="region-badge region-us">🇺🇸 US</span>'
+    elif is_us is False:
+        region_html = f'<span class="region-badge region-intl">🌍 {country or "International"}</span>'
+    else:
+        region_html = '<span class="region-badge region-unk">🌐 Unknown</span>'
+
+    # Supplemental lines stack: founder (if present), then hire/funding/location.
+    extras: list[str] = []
+    if founder_name:
+        extras.append(
+            f'<div class="event-company"><span>🌱</span><span>Founder: {founder_name}</span></div>'
+        )
     if person_name:
-        extra_html = f'<div class="event-company"><span>👤</span><span>{person_name}{" — " + person_title if person_title else ""}</span></div>'
+        extras.append(
+            f'<div class="event-company"><span>👤</span><span>{person_name}'
+            f'{" — " + person_title if person_title else ""}</span></div>'
+        )
     elif funding_round or funding_amount:
         label = " · ".join(filter(None, [funding_round, funding_amount]))
-        extra_html = f'<div class="event-company"><span>💰</span><span>{label}</span></div>'
+        extras.append(f'<div class="event-company"><span>💰</span><span>{label}</span></div>')
     elif location:
-        extra_html = f'<div class="event-company"><span>📍</span><span>{location}</span></div>'
+        extras.append(f'<div class="event-company"><span>📍</span><span>{location}</span></div>')
+    extra_html = "".join(extras)
 
     # Keep this markdown flush left — Streamlit uses CommonMark, which treats
     # content indented 4+ spaces as a code block and prints raw HTML to the UI.
@@ -436,6 +464,7 @@ def render_event_card(row, event_config) -> None:
         '<div class="event-card-header">'
         f'<span class="event-type-badge {badge_class}">{event_config["icon"]} {event_config["label"]}</span>'
         f'<span class="status-badge {status_cfg["class"]}">{status_cfg["label"]}</span>'
+        f'{region_html}'
         f'{industry_html}'
         f'{score_badge_html}'
         '</div>'
@@ -490,12 +519,20 @@ def render_event_card(row, event_config) -> None:
 
 def render_event_section(df, event_type, event_config) -> None:
     type_df = df[df["event_type"] == event_type]
-    # DOSS priority: hottest signals first, recency as tiebreaker.
+    # DOSS priority: US first, then hottest signals, recency as tiebreaker.
     if not type_df.empty and "relevance_score" in type_df.columns:
-        type_df = type_df.sort_values(
-            by=["relevance_score", "discovered_date"],
-            ascending=[False, False],
-        )
+        sort_df = type_df.copy()
+        if "is_us_company" in sort_df.columns:
+            sort_df["_us_rank"] = sort_df["is_us_company"].map({True: 0, False: 2}).fillna(1)
+            type_df = sort_df.sort_values(
+                by=["_us_rank", "relevance_score", "discovered_date"],
+                ascending=[True, False, False],
+            ).drop(columns=["_us_rank"])
+        else:
+            type_df = sort_df.sort_values(
+                by=["relevance_score", "discovered_date"],
+                ascending=[False, False],
+            )
     full_label = event_config.get("full_label", event_config["label"])
 
     header_html = (
@@ -606,6 +643,31 @@ def main() -> None:
         st.info("📭 No events found. Run the scraper to populate data.")
         return
 
+    # Region filter — DOSS prioritizes US leads but keeps international visible.
+    if "is_us_company" in df.columns:
+        st.sidebar.markdown("### Region")
+        region_choice = st.sidebar.radio(
+            "Region",
+            options=["US priority", "US only", "International only", "All"],
+            index=0,
+            label_visibility="collapsed",
+            help=(
+                "‘US priority’ shows everything but sorts US companies first. "
+                "‘US only’ hides international. ‘International only’ shows only "
+                "non-US leads. ‘All’ treats all regions equally."
+            ),
+        )
+        if region_choice == "US only":
+            df = df[df["is_us_company"] == True]  # noqa: E712
+        elif region_choice == "International only":
+            df = df[df["is_us_company"] == False]  # noqa: E712
+    else:
+        region_choice = "All"
+
+    if df.empty:
+        st.info("📭 No events match the selected region filter.")
+        return
+
     # Industry filter — slice DOSS's ICP by vertical
     industry_options = [
         (key, INDUSTRY_LABELS.get(key, key))
@@ -630,6 +692,17 @@ def main() -> None:
     if df.empty:
         st.info("📭 No events match the selected industry filter.")
         return
+
+    # US-priority sort: US leads float above international when "US priority"
+    # is the active region mode. Downstream render_event_section preserves
+    # the order via stable sort on relevance_score.
+    if region_choice == "US priority" and "is_us_company" in df.columns:
+        df = df.copy()
+        df["_us_rank"] = df["is_us_company"].map({True: 0, False: 2}).fillna(1)
+        df = df.sort_values(
+            by=["_us_rank", "relevance_score", "discovered_date"],
+            ascending=[True, False, False],
+        ).drop(columns=["_us_rank"])
 
     # Metrics — DOSS palette (ink + accent)
     type_counts = df["event_type"].value_counts().to_dict()
@@ -740,13 +813,18 @@ def main() -> None:
 
     # All Events Table + Export
     with st.expander("📊 All Events Table", expanded=False):
-        cols = ["event_type", "industry", "company_name", "title", "published_date", "lead_status"]
+        cols = [
+            "event_type", "industry", "company_name", "company_country",
+            "founder_name", "title", "published_date", "lead_status",
+        ]
         available = [c for c in cols if c in df.columns]
         display = df[available].copy()
         rename_map = {
             "event_type": "Type",
             "industry": "Industry",
             "company_name": "Company",
+            "company_country": "Region",
+            "founder_name": "Founder",
             "title": "Title",
             "published_date": "Published",
             "lead_status": "Status",

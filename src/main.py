@@ -175,7 +175,12 @@ class TriggerEventMonitor:
         for i, e in enumerate(sorted_events[:10], 1):
             print(f"\n  {i}. [{e.event_type.value.upper()}] {e.title[:70]}")
             if e.company_name:
-                print(f"     Company : {e.company_name}")
+                region = "US" if e.is_us_company is True else (
+                    e.company_country or "Intl" if e.is_us_company is False else "?"
+                )
+                print(f"     Company : {e.company_name} [{region}]")
+            if e.founder_name:
+                print(f"     Founder : {e.founder_name}")
             if e.person_name:
                 print(f"     Person  : {e.person_name} — {e.person_title or ''}")
             if e.funding_round:
