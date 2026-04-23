@@ -142,6 +142,24 @@ st.markdown(
     .region-intl { background: #F3E8FF; color: #6B21A8; }
     .region-unk  { background: #EEEEEA; color: #6B6B6B; }
 
+    .fit-badge {
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .fit-ops     { background: #FFE4D6; color: #B0440D; }    /* ops pain */
+    .fit-3pl     { background: #E0EAFB; color: #1E3A8A; }    /* 3PL mention */
+    .fit-channel { background: #F3F1EC; color: var(--doss-ink-2); border: 1px solid var(--doss-border); }
+
+    .enrich-panel {
+        background: #FAFAF7; border: 1px solid var(--doss-border);
+        border-radius: 8px; padding: 0.9rem 1.1rem; margin-top: 0.6rem;
+        font-size: 0.82rem; color: var(--doss-ink-2);
+    }
+    .enrich-panel .row { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .enrich-panel .k   { color: var(--doss-muted); font-weight: 600; margin-right: 0.35rem; }
+    .enrich-panel a    { color: var(--doss-accent); text-decoration: none; font-weight: 600; }
+    .enrich-panel a:hover { text-decoration: underline; }
+
     .score-badge {
         padding: 0.22rem 0.55rem; border-radius: 6px;
         font-size: 0.68rem; font-weight: 700;
@@ -411,6 +429,22 @@ def render_event_card(row, event_config) -> None:
     industry_key = row.get("industry", "") or ""
     published = row.get("published_date", "")
 
+    # Enrichment fields (migration 006)
+    website          = row.get("company_website", "") or ""
+    company_linkedin = row.get("company_linkedin", "") or ""
+    founder_linkedin = row.get("founder_linkedin", "") or ""
+    hq_city          = row.get("hq_city", "") or ""
+    hq_state         = row.get("hq_state", "") or ""
+    founding_year    = row.get("founding_year", None)
+    employee_count   = row.get("employee_count", "") or ""
+    total_funding    = row.get("total_funding", "") or ""
+    retail_doors_raw = row.get("retail_doors", "") or ""
+    sku_count        = row.get("sku_count", "") or ""
+    ops_pain         = bool(row.get("ops_pain_signal", False))
+    tech_stack_raw   = row.get("tech_stack", "") or ""
+    three_pl         = bool(row.get("three_pl_mention", False))
+    channel_mix      = row.get("channel_mix", "") or ""
+
     date_display = ""
     if published:
         try:
@@ -438,6 +472,21 @@ def render_event_card(row, event_config) -> None:
         region_html = f'<span class="region-badge region-intl">🌍 {country or "International"}</span>'
     else:
         region_html = '<span class="region-badge region-unk">🌐 Unknown</span>'
+
+    # DOSS-fit badges
+    fit_parts: list[str] = []
+    if ops_pain:
+        fit_parts.append('<span class="fit-badge fit-ops">🔥 Ops Pain</span>')
+    if three_pl:
+        fit_parts.append('<span class="fit-badge fit-3pl">📦 3PL</span>')
+    if channel_mix:
+        channel_label = {
+            "DTC": "💻 DTC",
+            "DTC_PLUS_RETAIL": "🔄 DTC + Retail",
+            "RETAIL": "🏪 Retail",
+        }.get(channel_mix, channel_mix)
+        fit_parts.append(f'<span class="fit-badge fit-channel">{channel_label}</span>')
+    fit_html = "".join(fit_parts)
 
     # Supplemental lines stack: founder (if present), then hire/funding/location.
     extras: list[str] = []
@@ -467,6 +516,7 @@ def render_event_card(row, event_config) -> None:
         f'{region_html}'
         f'{industry_html}'
         f'{score_badge_html}'
+        f'{fit_html}'
         '</div>'
         f'<div class="event-title">{title}</div>'
         f'<div class="event-company"><span>🏢</span><span>{company}</span></div>'
@@ -482,6 +532,73 @@ def render_event_card(row, event_config) -> None:
             col1, col2 = st.columns([2, 1])
 
             with col1:
+                # ── Enrichment panel ──────────────────────────────────────
+                enrich_rows: list[str] = []
+
+                hq_line = ""
+                if hq_city and hq_state:
+                    hq_line = f"{hq_city}, {hq_state}"
+                elif hq_city:
+                    hq_line = hq_city
+                elif hq_state:
+                    hq_line = hq_state
+
+                def _link(url: str, label: str) -> str:
+                    href = url if url.startswith("http") else f"https://{url}"
+                    return f'<a href="{href}" target="_blank">{label}</a>'
+
+                outreach_parts = []
+                if website:
+                    outreach_parts.append(_link(website, website))
+                if company_linkedin:
+                    outreach_parts.append(_link(company_linkedin, "Company"))
+                if founder_linkedin:
+                    outreach_parts.append(_link(founder_linkedin, "Founder"))
+                if outreach_parts:
+                    enrich_rows.append(
+                        '<div class="row"><span class="k">Outreach:</span> '
+                        + " · ".join(outreach_parts) + "</div>"
+                    )
+                if hq_line:
+                    enrich_rows.append(
+                        f'<div class="row"><span class="k">HQ:</span> {hq_line}</div>'
+                    )
+
+                viability_bits = []
+                if founding_year:
+                    try:
+                        viability_bits.append(f"Founded {int(founding_year)}")
+                    except (TypeError, ValueError):
+                        pass
+                if employee_count:
+                    viability_bits.append(f"{employee_count} employees")
+                if total_funding:
+                    viability_bits.append(f"{total_funding} raised to date")
+                if sku_count:
+                    viability_bits.append(f"{sku_count} SKUs")
+                if viability_bits:
+                    enrich_rows.append(
+                        '<div class="row"><span class="k">Viability:</span> '
+                        + " · ".join(viability_bits) + "</div>"
+                    )
+
+                if retail_doors_raw:
+                    doors = ", ".join(d.strip().title() for d in retail_doors_raw.split(",") if d.strip())
+                    enrich_rows.append(
+                        f'<div class="row"><span class="k">Retail doors:</span> {doors}</div>'
+                    )
+                if tech_stack_raw:
+                    stack = ", ".join(t.strip().title() for t in tech_stack_raw.split(",") if t.strip())
+                    enrich_rows.append(
+                        f'<div class="row"><span class="k">Tech stack:</span> {stack}</div>'
+                    )
+
+                if enrich_rows:
+                    st.markdown(
+                        '<div class="enrich-panel">' + "".join(enrich_rows) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+
                 desc = row.get("description", "")
                 if desc:
                     st.markdown("**Description**")
@@ -693,6 +810,49 @@ def main() -> None:
         st.info("📭 No events match the selected industry filter.")
         return
 
+    # DOSS fit filters — ops pain and 3PL stage are the two strongest buying signals
+    st.sidebar.markdown("### DOSS Fit")
+    only_ops_pain = st.sidebar.checkbox(
+        "🔥 Only ops pain signals", value=False,
+        help="Articles mentioning fulfillment, inventory, or supply-chain challenges.",
+    )
+    only_three_pl = st.sidebar.checkbox(
+        "📦 Only 3PL / co-packer mentions", value=False,
+        help="Brand has outgrown self-fulfillment — ripe for a DOSS conversation.",
+    )
+    if only_ops_pain and "ops_pain_signal" in df.columns:
+        df = df[df["ops_pain_signal"] == True]  # noqa: E712
+    if only_three_pl and "three_pl_mention" in df.columns:
+        df = df[df["three_pl_mention"] == True]  # noqa: E712
+
+    if "channel_mix" in df.columns:
+        channel_options = [
+            c for c in ["DTC", "DTC_PLUS_RETAIL", "RETAIL"]
+            if (df["channel_mix"] == c).any()
+        ]
+        if channel_options:
+            channel_labels = {
+                "DTC": "💻 DTC",
+                "DTC_PLUS_RETAIL": "🔄 DTC + Retail",
+                "RETAIL": "🏪 Retail",
+            }
+            selected_channels = st.sidebar.multiselect(
+                "Channel mix",
+                options=[channel_labels[c] for c in channel_options],
+                default=[],
+                placeholder="All channels",
+            )
+            chosen = [
+                c for c in channel_options
+                if channel_labels[c] in selected_channels
+            ]
+            if chosen:
+                df = df[df["channel_mix"].isin(chosen)]
+
+    if df.empty:
+        st.info("📭 No events match the selected DOSS-fit filters.")
+        return
+
     # US-priority sort: US leads float above international when "US priority"
     # is the active region mode. Downstream render_event_section preserves
     # the order via stable sort on relevance_score.
@@ -815,7 +975,10 @@ def main() -> None:
     with st.expander("📊 All Events Table", expanded=False):
         cols = [
             "event_type", "industry", "company_name", "company_country",
-            "founder_name", "title", "published_date", "lead_status",
+            "hq_city", "hq_state", "founder_name", "founding_year",
+            "total_funding", "channel_mix", "ops_pain_signal",
+            "three_pl_mention", "retail_doors", "tech_stack",
+            "company_website", "title", "published_date", "lead_status",
         ]
         available = [c for c in cols if c in df.columns]
         display = df[available].copy()
@@ -824,7 +987,17 @@ def main() -> None:
             "industry": "Industry",
             "company_name": "Company",
             "company_country": "Region",
+            "hq_city": "HQ City",
+            "hq_state": "HQ State",
             "founder_name": "Founder",
+            "founding_year": "Founded",
+            "total_funding": "Total Raised",
+            "channel_mix": "Channel",
+            "ops_pain_signal": "Ops Pain",
+            "three_pl_mention": "3PL",
+            "retail_doors": "Retail Doors",
+            "tech_stack": "Tech Stack",
+            "company_website": "Website",
             "title": "Title",
             "published_date": "Published",
             "lead_status": "Status",
