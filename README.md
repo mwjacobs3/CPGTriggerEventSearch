@@ -166,6 +166,37 @@ retailer mentioned in a retail expansion article adds +8 (capped). The
 dashboard sidebar has checkboxes to show **only** ops-pain or 3PL leads, plus
 a channel-mix multiselect.
 
+### Lead quality controls
+
+Two knobs in `config.yaml` decide which leads survive each cycle:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `scraper.min_relevance_score` | `50` | Drops weak candidates *before* save. `0` keeps everything; raise to `60` for stricter pipelines. |
+| `scraper.max_age_hours` | `48` | Drops articles whose `published_date` is older than this. `0` disables (use only when seeding the DB). |
+
+Each run prints how many candidates were skipped on each gate, so you can
+re-tune from real numbers.
+
+### ICP size band ($5M–$500M revenue proxy)
+
+DOSS targets mid-market CPG. Press releases don't expose revenue, so the
+scraper uses **total funding raised** and **employee count** as proxies and
+folds them directly into the relevance score:
+
+| Signal | Bonus / penalty |
+|---|---|
+| Total funding parses to **$5M–$500M** | **+15** |
+| Total funding > **$500M** | **−30** |
+| Total funding > $0 but < $5M | **−5** |
+| Employee count in **10–1000** | **+10** |
+| Employee count > **2000** | **−20** |
+| Employee count 1000–2000 | **−5** |
+
+The band is tunable in `territory.company_filters.size_band` (funding
+min/max in USD, employee min/max/hard_max). Public mega-caps and
+Fortune-500 mentions are excluded outright before scoring.
+
 ### 1. Trade-press RSS (`RSSFeedScraper`, 37 feeds from `config.yaml`)
 
 | Category | Feeds |

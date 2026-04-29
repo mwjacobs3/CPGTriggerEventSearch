@@ -280,6 +280,16 @@ STATUS_CONFIG = {
 }
 
 
+# ── User-applied industry tag (sales-controlled, separate from auto `industry`)
+USER_INDUSTRY_OPTIONS = [
+    "Consumer Goods",
+    "Health & Beauty",
+    "Food & Beverage",
+    "Manufacturing",
+    "Distribution",
+]
+
+
 @st.cache_resource
 def get_supabase_client():
     try:
@@ -373,7 +383,12 @@ def load_source_statuses() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def update_lead_status(event_id: str, status: str, notes: str = "") -> bool:
+def update_lead_status(
+    event_id: str,
+    status: str,
+    notes: str = "",
+    user_industry: str | None = None,
+) -> bool:
     client = get_supabase_client()
     if not client:
         return False
@@ -381,9 +396,12 @@ def update_lead_status(event_id: str, status: str, notes: str = "") -> bool:
         if status == "NOT RELEVANT":
             client.table("events").delete().eq("id", event_id).execute()
         else:
-            data = {"lead_status": status}
+            data: dict = {"lead_status": status}
             if notes is not None:
                 data["notes"] = notes
+            # Empty string clears the tag; None leaves the column untouched.
+            if user_industry is not None:
+                data["user_industry"] = user_industry or None
             client.table("events").update(data).eq("id", event_id).execute()
         _fetch_events.clear()  # bust cache so the card disappears on rerun
         return True
@@ -496,6 +514,7 @@ def render_event_card(row, event_config) -> None:
     funding_round = _safe_str(row.get("funding_round"))
     funding_amount = _safe_str(row.get("funding_amount"))
     industry_key = _safe_str(row.get("industry"))
+    user_industry = _safe_str(row.get("user_industry"))
     published = row.get("published_date", "")
 
     # Enrichment fields (migration 006) — defensive against NaN on rows that
@@ -539,6 +558,11 @@ def render_event_card(row, event_config) -> None:
     industry_label = INDUSTRY_LABELS.get(industry_key, "") if industry_key else ""
     industry_html = (
         f'<span class="industry-badge">🏷 {industry_label}</span>' if industry_label else ""
+    )
+    user_industry_html = (
+        f'<span class="industry-badge" style="background:#FFE4D6;color:#B0440D;border-color:#FFD0B6;">'
+        f'🎯 {user_industry}</span>'
+        if user_industry else ""
     )
 
     # Region badge: 🇺🇸 US vs 🌍 International vs unknown
@@ -591,6 +615,7 @@ def render_event_card(row, event_config) -> None:
         f'<span class="status-badge {status_cfg["class"]}">{status_cfg["label"]}</span>'
         f'{region_html}'
         f'{industry_html}'
+        f'{user_industry_html}'
         f'{score_badge_html}'
         f'{fit_html}'
         '</div>'
@@ -690,6 +715,20 @@ def render_event_card(row, event_config) -> None:
                     key=f"status_{row['id']}",
                     label_visibility="collapsed",
                 )
+                industry_choices = ["— Industry tag —"] + USER_INDUSTRY_OPTIONS
+                current_industry = user_industry if user_industry in USER_INDUSTRY_OPTIONS else ""
+                industry_index = (
+                    USER_INDUSTRY_OPTIONS.index(current_industry) + 1
+                    if current_industry else 0
+                )
+                new_user_industry = st.selectbox(
+                    "Industry tag",
+                    industry_choices,
+                    index=industry_index,
+                    key=f"user_industry_{row['id']}",
+                    label_visibility="collapsed",
+                    help="Sales-applied industry bucket — separate from the auto-detected industry.",
+                )
                 notes = st.text_area(
                     "Notes",
                     value=row.get("notes") or "",
@@ -698,7 +737,15 @@ def render_event_card(row, event_config) -> None:
                     placeholder="Add notes…",
                 )
                 if st.button("💾 Save", key=f"save_{row['id']}", use_container_width=True):
-                    if update_lead_status(row["id"], new_status, notes):
+                    industry_to_save = (
+                        new_user_industry
+                        if new_user_industry in USER_INDUSTRY_OPTIONS
+                        else ""
+                    )
+                    if update_lead_status(
+                        row["id"], new_status, notes,
+                        user_industry=industry_to_save,
+                    ):
                         if new_status == "NOT RELEVANT":
                             st.success("✓ Event removed!")
                         else:
@@ -885,20 +932,44 @@ def main() -> None:
         st.info("📭 No events match the selected industry filter.")
         return
 
-    # DOSS fit filters — ops pain and 3PL stage are the two strongest buying signals
-    st.sidebar.markdown("### DOSS Fit")
-    only_ops_pain = st.sidebar.checkbox(
-        "🔥 Only ops pain signals", value=False,
-        help="Articles mentioning fulfillment, inventory, or supply-chain challenges.",
+    # DOSS fit filters — broken out by user-applied industry tag.
+    # Reps tag each lead from the card dropdown; this section filters on those tags.
+    st.sidebar.markdown("### DOSS Fit · Industry")
+    if "user_industry" in df.columns:
+        tag_counts = (
+            df["user_industry"].dropna().replace("", pd.NA).dropna().value_counts().to_dict()
+        )
+    else:
+        tag_counts = {}
+    available_tags = [t for t in USER_INDUSTRY_OPTIONS if tag_counts.get(t, 0) > 0]
+    untagged_count = len(df) - sum(tag_counts.get(t, 0) for t in USER_INDUSTRY_OPTIONS)
+    selected_user_industries = st.sidebar.multiselect(
+        "Filter by industry tag",
+        options=USER_INDUSTRY_OPTIONS,
+        default=[],
+        format_func=lambda t: f"{t} ({tag_counts.get(t, 0)})",
+        label_visibility="collapsed",
+        placeholder="All tagged industries",
+        help=(
+            "Filters by the per-lead industry tag set from the card dropdown. "
+            "Leads without a tag are hidden when any filter is selected."
+        ),
     )
-    only_three_pl = st.sidebar.checkbox(
-        "📦 Only 3PL / co-packer mentions", value=False,
-        help="Brand has outgrown self-fulfillment — ripe for a DOSS conversation.",
+    show_untagged = st.sidebar.checkbox(
+        f"Include untagged ({untagged_count})",
+        value=False,
+        help="Also show leads that haven’t been tagged by industry yet.",
     )
-    if only_ops_pain and "ops_pain_signal" in df.columns:
-        df = df[df["ops_pain_signal"].apply(_safe_bool)]
-    if only_three_pl and "three_pl_mention" in df.columns:
-        df = df[df["three_pl_mention"].apply(_safe_bool)]
+    if selected_user_industries and "user_industry" in df.columns:
+        mask = df["user_industry"].isin(selected_user_industries)
+        if show_untagged:
+            mask = mask | df["user_industry"].isna() | (df["user_industry"] == "")
+        df = df[mask]
+    if available_tags:
+        st.sidebar.caption(
+            "Tagged: "
+            + " · ".join(f"{t} {tag_counts[t]}" for t in available_tags)
+        )
 
     if "channel_mix" in df.columns:
         channel_options = [
@@ -1052,9 +1123,9 @@ def main() -> None:
     # All Events Table + Export
     with st.expander("📊 All Events Table", expanded=False):
         cols = [
-            "event_type", "industry", "company_name", "company_country",
-            "hq_city", "hq_state", "founder_name", "founding_year",
-            "total_funding", "channel_mix", "ops_pain_signal",
+            "event_type", "industry", "user_industry", "company_name",
+            "company_country", "hq_city", "hq_state", "founder_name",
+            "founding_year", "total_funding", "channel_mix", "ops_pain_signal",
             "three_pl_mention", "retail_doors", "tech_stack",
             "company_website", "title", "published_date", "lead_status",
         ]
@@ -1062,7 +1133,8 @@ def main() -> None:
         display = df[available].copy()
         rename_map = {
             "event_type": "Type",
-            "industry": "Industry",
+            "industry": "Industry (auto)",
+            "user_industry": "Industry (tag)",
             "company_name": "Company",
             "company_country": "Region",
             "hq_city": "HQ City",
@@ -1081,8 +1153,8 @@ def main() -> None:
             "lead_status": "Status",
         }
         display.columns = [rename_map[c] for c in available]
-        if "Industry" in display.columns:
-            display["Industry"] = display["Industry"].map(
+        if "Industry (auto)" in display.columns:
+            display["Industry (auto)"] = display["Industry (auto)"].map(
                 lambda k: INDUSTRY_LABELS.get(k, "") if k else ""
             )
         st.dataframe(display, use_container_width=True, hide_index=True)
