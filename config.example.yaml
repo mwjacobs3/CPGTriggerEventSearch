@@ -10,9 +10,10 @@ scraper:
   request_delay: 1.5                # Seconds between HTTP requests
   timeout: 30
   user_agent: "Mozilla/5.0 (compatible; CPGTriggerEventSearch/2.0)"
+  min_relevance_score: 50           # 0 = keep everything. Raise to 50–60 to send only strong leads downstream.
 
 # ── Territory / ICP filters ───────────────────────────────────────────────────
-# DOSS target: mid-market ($5M–$100M) US-based CPG companies.
+# DOSS target: mid-market ($5M–$500M) US-based CPG companies.
 territory:
   country: "United States"
 
@@ -35,6 +36,17 @@ territory:
 
   company_filters:
     exclude_public_companies: true
+
+    # Size band — DOSS ICP is $5M–$500M revenue. We don't have revenue from
+    # press releases, but total funding raised and employee count are decent
+    # proxies. Leads inside this band get a relevance bonus; outside gets a
+    # penalty. See `_relevance_score` in src/scrapers/base.py.
+    size_band:
+      funding_min_usd: 5000000        # $5M total raised
+      funding_max_usd: 500000000      # $500M total raised
+      employee_min: 10
+      employee_max: 1000
+      employee_hard_max: 2000         # > this gets a stronger penalty
 
     # Text patterns that indicate a publicly traded company
     public_company_indicators:

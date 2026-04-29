@@ -16,7 +16,7 @@ from ..models import EventType, TriggerEvent
 
 
 # ── Company-size & public-company exclusions ─────────────────────────────────
-# We want mid-market ($5M–$100M). Exclude Fortune 500 / mega-cap mentions.
+# We want mid-market ($5M–$500M). Exclude Fortune 500 / mega-cap mentions.
 PUBLIC_COMPANY_INDICATORS = [
     "nasdaq:", "(nasdaq", "nyse:", "(nyse", "otcbb:", "(otcbb",
     "otc markets", "(otcqx", "(otcqb", "amex:", "(amex",
@@ -418,6 +418,16 @@ class BaseScraper(ABC):
         self._excluded_mega_cpg = EXCLUDED_MEGA_CPG + extra_mega_cpg
         self._excluded_subjects = EXCLUDED_MEGA_SUBJECTS + extra_subjects
 
+        # ICP size band — DOSS targets $5M–$500M revenue. We use total
+        # funding raised and employee count as the two press-derivable
+        # proxies for company size.
+        size_band = filters.get("size_band", {})
+        self.funding_min_usd = float(size_band.get("funding_min_usd", 5_000_000))
+        self.funding_max_usd = float(size_band.get("funding_max_usd", 500_000_000))
+        self.employee_min    = int(size_band.get("employee_min", 10))
+        self.employee_max    = int(size_band.get("employee_max", 1_000))
+        self.employee_hard_max = int(size_band.get("employee_hard_max", 2_000))
+
     # ── Abstract interface ────────────────────────────────────────────────────
 
     @abstractmethod
@@ -491,6 +501,8 @@ class BaseScraper(ABC):
             combined, event_type, keywords_hit, is_us,
             ops_pain=ops_pain, three_pl=three_pl,
             retail_door_count=len(retail_doors),
+            total_funding=total_funding,
+            employee_count=employee_count,
         )
 
         from ..models import EventSource
@@ -679,6 +691,8 @@ class BaseScraper(ABC):
         ops_pain: bool = False,
         three_pl: bool = False,
         retail_door_count: int = 0,
+        total_funding: Optional[str] = None,
+        employee_count: Optional[str] = None,
     ) -> float:
         score = min(len(keywords_hit) * 15, 60)  # up to 60 from keyword hits
 
@@ -708,7 +722,60 @@ class BaseScraper(ABC):
         if three_pl:
             score += 10
 
+        # ── Size-band signals ($5M–$500M revenue proxy) ───────────────────
+        funding_usd = self._parse_funding_usd(total_funding)
+        if funding_usd is not None:
+            if self.funding_min_usd <= funding_usd <= self.funding_max_usd:
+                score += 15
+            elif funding_usd > self.funding_max_usd:
+                score -= 30
+            elif funding_usd > 0 and funding_usd < self.funding_min_usd:
+                # Pre-revenue / very early — still a possible lead but down-weight.
+                score -= 5
+
+        emp_count = self._parse_employee_count(employee_count)
+        if emp_count is not None:
+            if self.employee_min <= emp_count <= self.employee_max:
+                score += 10
+            elif emp_count > self.employee_hard_max:
+                score -= 20
+            elif emp_count > self.employee_max:
+                score -= 5
+
         return min(max(score, 0), 100)
+
+    @staticmethod
+    def _parse_funding_usd(funding_str: Optional[str]) -> Optional[float]:
+        """Convert "$25 Million" / "$1.2 Billion" → float dollars. None if unparseable."""
+        if not funding_str:
+            return None
+        m = re.search(
+            r"\$?\s*([\d,]+(?:\.\d+)?)\s*(million|billion|m|b)\b",
+            funding_str,
+            re.IGNORECASE,
+        )
+        if not m:
+            return None
+        try:
+            amount = float(m.group(1).replace(",", ""))
+        except ValueError:
+            return None
+        unit = m.group(2).lower()
+        multiplier = 1_000_000_000 if unit in ("billion", "b") else 1_000_000
+        return amount * multiplier
+
+    @staticmethod
+    def _parse_employee_count(emp_str: Optional[str]) -> Optional[int]:
+        """Best-effort parse of employee_count strings like "40", "100" → int."""
+        if not emp_str:
+            return None
+        digits = re.search(r"(\d[\d,]*)", emp_str)
+        if not digits:
+            return None
+        try:
+            return int(digits.group(1).replace(",", ""))
+        except ValueError:
+            return None
 
     # ── Extraction helpers ────────────────────────────────────────────────────
 

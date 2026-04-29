@@ -88,23 +88,36 @@ class TriggerEventMonitor:
             except Exception as exc:
                 print(f"    ERROR: {exc}")
 
-        # Age filter + dedup
+        # Age filter + relevance gate + dedup
+        min_score = float(
+            self.config.get("scraper", {}).get("min_relevance_score", 0)
+        )
         new_events: list[TriggerEvent] = []
         skipped_old = 0
+        skipped_low_score = 0
         for event in all_events:
             if cutoff:
                 pub = event.published_date
                 if pub and pub < cutoff:
                     skipped_old += 1
                     continue
+            if min_score > 0 and (event.relevance_score or 0) < min_score:
+                skipped_low_score += 1
+                continue
             if self.db.has_seen_url(event.url, event.title):
                 continue
             new_events.append(event)
 
         age_note = f"  Too old (>{max_age_hours}h): {skipped_old}\n" if cutoff else ""
+        score_note = (
+            f"  Below score gate (<{min_score:.0f}): {skipped_low_score}\n"
+            if min_score > 0 else ""
+        )
         print(f"\n  Total candidates : {len(all_events)}")
         if age_note:
             print(age_note, end="")
+        if score_note:
+            print(score_note, end="")
         print(f"  New events       : {len(new_events)}")
 
         # Save + alert
