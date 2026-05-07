@@ -60,7 +60,9 @@ class TriggerEvent:
     # DOSS fit signals
     ops_pain_signal: bool = False              # article mentions supply-chain pain
     tech_stack: list = field(default_factory=list)     # "shopify", "netsuite", etc.
-    three_pl_mention: bool = False             # 3PL / co-packer / fulfillment partner
+    three_pl_mention: bool = False             # 3PL / fulfillment partner / named 3PL provider
+    co_man_mention: bool = False               # co-manufacturer / co-packer / contract manufacturer
+    integration_match: list = field(default_factory=list)  # DOSS-integration products mentioned
     channel_mix: Optional[str] = None          # "DTC" | "DTC_PLUS_RETAIL" | "RETAIL"
 
     # Article body
@@ -107,6 +109,8 @@ class TriggerEvent:
             "ops_pain_signal": self.ops_pain_signal,
             "tech_stack": ",".join(self.tech_stack),
             "three_pl_mention": self.three_pl_mention,
+            "co_man_mention": self.co_man_mention,
+            "integration_match": ",".join(self.integration_match),
             "channel_mix": self.channel_mix or "",
             "description": (self.description or "")[:2000],
             "source_name": self.source_name or "",

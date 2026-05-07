@@ -148,6 +148,8 @@ st.markdown(
     }
     .fit-ops     { background: #FFE4D6; color: #B0440D; }    /* ops pain */
     .fit-3pl     { background: #E0EAFB; color: #1E3A8A; }    /* 3PL mention */
+    .fit-coman   { background: #FEF3C7; color: #854D0E; }    /* co-manufacturer */
+    .fit-integration { background: #D1FAE5; color: #065F46; }/* DOSS-integrated stack */
     .fit-channel { background: #F3F1EC; color: var(--doss-ink-2); border: 1px solid var(--doss-border); }
 
     .enrich-panel {
@@ -538,6 +540,8 @@ def render_event_card(row, event_config) -> None:
     ops_pain         = _safe_bool(row.get("ops_pain_signal"))
     tech_stack_raw   = _safe_str(row.get("tech_stack"))
     three_pl         = _safe_bool(row.get("three_pl_mention"))
+    co_man           = _safe_bool(row.get("co_man_mention"))
+    integration_raw  = _safe_str(row.get("integration_match"))
     channel_mix      = _safe_str(row.get("channel_mix"))
 
     date_display = ""
@@ -579,6 +583,13 @@ def render_event_card(row, event_config) -> None:
         fit_parts.append('<span class="fit-badge fit-ops">🔥 Ops Pain</span>')
     if three_pl:
         fit_parts.append('<span class="fit-badge fit-3pl">📦 3PL</span>')
+    if co_man:
+        fit_parts.append('<span class="fit-badge fit-coman">🏭 Co-Man</span>')
+    if integration_raw:
+        integration_count = len([i for i in integration_raw.split(",") if i.strip()])
+        fit_parts.append(
+            f'<span class="fit-badge fit-integration">🔌 Integrated ({integration_count})</span>'
+        )
     if channel_mix:
         channel_label = {
             "DTC": "💻 DTC",
@@ -688,6 +699,13 @@ def render_event_card(row, event_config) -> None:
                     stack = ", ".join(t.strip().title() for t in tech_stack_raw.split(",") if t.strip())
                     enrich_rows.append(
                         f'<div class="row"><span class="k">Tech stack:</span> {stack}</div>'
+                    )
+                if integration_raw:
+                    integrations = ", ".join(
+                        i.strip() for i in integration_raw.split(",") if i.strip()
+                    )
+                    enrich_rows.append(
+                        f'<div class="row"><span class="k">DOSS-integrated tools:</span> {integrations}</div>'
                     )
 
                 if enrich_rows:
@@ -971,6 +989,49 @@ def main() -> None:
             + " · ".join(f"{t} {tag_counts[t]}" for t in available_tags)
         )
 
+    # DOSS-fit signal filters — show only leads that exhibit a given signal.
+    st.sidebar.markdown("### Supply-Chain Signals")
+    if "ops_pain_signal" in df.columns:
+        ops_count = int(df["ops_pain_signal"].fillna(False).astype(bool).sum())
+        if st.sidebar.checkbox(
+            f"🔥 Only ops-pain leads ({ops_count})",
+            value=False,
+            help="Article mentions fulfillment / inventory / supply-chain pain.",
+        ):
+            df = df[df["ops_pain_signal"].fillna(False).astype(bool)]
+    if not df.empty and "three_pl_mention" in df.columns:
+        tpl_count = int(df["three_pl_mention"].fillna(False).astype(bool).sum())
+        if st.sidebar.checkbox(
+            f"📦 Only 3PL leads ({tpl_count})",
+            value=False,
+            help="Brand outsources fulfillment to a third-party logistics partner.",
+        ):
+            df = df[df["three_pl_mention"].fillna(False).astype(bool)]
+    if not df.empty and "co_man_mention" in df.columns:
+        cm_count = int(df["co_man_mention"].fillna(False).astype(bool).sum())
+        if st.sidebar.checkbox(
+            f"🏭 Only co-man leads ({cm_count})",
+            value=False,
+            help="Brand uses a co-manufacturer / co-packer / contract manufacturer.",
+        ):
+            df = df[df["co_man_mention"].fillna(False).astype(bool)]
+    if not df.empty and "integration_match" in df.columns:
+        int_count = int(
+            df["integration_match"].fillna("").astype(str).str.strip().ne("").sum()
+        )
+        if st.sidebar.checkbox(
+            f"🔌 Only DOSS-integrated stack ({int_count})",
+            value=False,
+            help="Brand mentions a tool DOSS already integrates with (Shopify, NetSuite, SPS Commerce…).",
+        ):
+            df = df[
+                df["integration_match"].fillna("").astype(str).str.strip().ne("")
+            ]
+
+    if df.empty:
+        st.info("📭 No events match the selected supply-chain signal filters.")
+        return
+
     if "channel_mix" in df.columns:
         channel_options = [
             c for c in ["DTC", "DTC_PLUS_RETAIL", "RETAIL"]
@@ -1126,7 +1187,8 @@ def main() -> None:
             "event_type", "industry", "user_industry", "company_name",
             "company_country", "hq_city", "hq_state", "founder_name",
             "founding_year", "total_funding", "channel_mix", "ops_pain_signal",
-            "three_pl_mention", "retail_doors", "tech_stack",
+            "three_pl_mention", "co_man_mention", "integration_match",
+            "retail_doors", "tech_stack",
             "company_website", "title", "published_date", "lead_status",
         ]
         available = [c for c in cols if c in df.columns]
@@ -1145,6 +1207,8 @@ def main() -> None:
             "channel_mix": "Channel",
             "ops_pain_signal": "Ops Pain",
             "three_pl_mention": "3PL",
+            "co_man_mention": "Co-Man",
+            "integration_match": "DOSS Integrations",
             "retail_doors": "Retail Doors",
             "tech_stack": "Tech Stack",
             "company_website": "Website",

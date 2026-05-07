@@ -21,6 +21,7 @@ import yaml
 
 from .alerts import AlertManager
 from .database import SupabaseManager
+from .enrichment import enrich_event
 from .models import TriggerEvent
 from .scrapers import FinSMEsScraper, GoogleNewsScraper, JobScraper, RSSScraper
 
@@ -120,6 +121,27 @@ class TriggerEventMonitor:
             print(score_note, end="")
         print(f"  New events       : {len(new_events)}")
 
+        # Optional website / BuiltWith enrichment — best-effort, never blocks.
+        enrichment_cfg = self.config.get("enrichment", {})
+        if enrichment_cfg.get("enabled", True) and new_events:
+            print(f"  Enriching        : {len(new_events)} events (website fingerprints)")
+            timeout = float(enrichment_cfg.get("timeout_seconds", 6))
+            ua = self.config.get("scraper", {}).get(
+                "user_agent",
+                "Mozilla/5.0 (compatible; CPGTriggerEventSearch/2.0)",
+            )
+            enriched_count = 0
+            for event in new_events:
+                before = len(event.integration_match or [])
+                try:
+                    enrich_event(event, timeout=timeout, user_agent=ua)
+                except Exception as exc:
+                    print(f"    Enrichment skipped for {event.company_name or event.url}: {exc}")
+                    continue
+                if len(event.integration_match or []) > before:
+                    enriched_count += 1
+            print(f"  Integrations +   : {enriched_count} events gained tech-stack hits")
+
         # Save + alert
         saved = 0
         for event in new_events:
@@ -213,6 +235,10 @@ class TriggerEventMonitor:
                 fit.append("ops pain")
             if e.three_pl_mention:
                 fit.append("3PL")
+            if e.co_man_mention:
+                fit.append("co-man")
+            if e.integration_match:
+                fit.append(f"int:{'/'.join(e.integration_match[:3])}")
             if e.channel_mix:
                 fit.append(e.channel_mix.lower().replace("_", " "))
             if fit:
