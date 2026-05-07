@@ -602,6 +602,89 @@ google_news_queries:
     - "operations executive appointed consumer goods startup"
     - "logistics leader joins emerging CPG brand"
 
+  # Supply-chain footprint queries — surface brands that name a 3PL,
+  # co-manufacturer, or DOSS-integrated tool in their press. These are
+  # the strongest "uses outsourced ops" signals we can mine from articles.
+  supply_chain_footprint:
+    # Named 3PLs (brand says "we use ShipBob / ShipMonk / Saddle Creek …")
+    - '"works with ShipBob" CPG brand'
+    - '"partnered with ShipBob" DTC brand'
+    - '"using ShipMonk" consumer brand'
+    - '"ShipHero" food beverage brand'
+    - '"Flowspace" consumer brand fulfillment'
+    - '"Stord" CPG brand'
+    - '"Saddle Creek" consumer brand fulfillment'
+    - '"Quiet Logistics" DTC brand'
+    - '"Radial" consumer brand fulfillment'
+    - '"NFI" CPG brand distribution'
+    - '"Ryder" consumer brand fulfillment'
+    # Generic 3PL phrasing
+    - "DTC brand 3PL partner"
+    - "CPG brand third-party logistics"
+    - "consumer brand outgrew self-fulfillment"
+    - "food beverage brand fulfillment partner"
+    - "supplement brand 3PL"
+    # Co-manufacturer / co-packer
+    - '"co-manufacturer" food beverage brand'
+    - '"co-packer" snack brand'
+    - '"contract manufacturer" CPG brand'
+    - '"contract packager" consumer brand'
+    - '"co-manufacturing partner" emerging brand'
+    - '"private label manufacturer" CPG'
+    - "DTC brand co-packer"
+    - "supplement brand contract manufacturer"
+    - "beverage brand co-manufacturing"
+    - "snack brand contract packager"
+    # Named co-mans (rare in press, but high-signal when found)
+    - '"Power Brands" beverage'
+    - '"Nellson" supplement'
+    - '"Pharmavite" supplement'
+    - '"Refresco" beverage'
+    - '"Niagara Bottling" beverage'
+
+  # DOSS integration-stack queries — surface brands already running on
+  # tools DOSS plugs into (Shopify, NetSuite, SPS Commerce, ShipBob, …).
+  # A brand on a compatible stack short-circuits a major sales objection.
+  integration_stack:
+    # ERP / accounting
+    - '"NetSuite" CPG brand'
+    - '"NetSuite" food beverage brand'
+    - '"Acumatica" consumer brand'
+    - '"Sage Intacct" CPG brand'
+    - '"QuickBooks" emerging CPG brand'
+    - '"SAP Business One" food brand'
+    - '"Microsoft Dynamics" consumer brand'
+    # E-commerce
+    - '"Shopify Plus" CPG brand'
+    - '"powered by Shopify" food beverage brand'
+    - '"BigCommerce" consumer brand'
+    - '"Faire" emerging CPG brand'
+    # WMS / 3PL platform
+    - '"Cin7" CPG brand'
+    - '"Extensiv" consumer brand'
+    - '"Skubana" DTC brand'
+    - '"Brightpearl" consumer brand'
+    # EDI
+    - '"SPS Commerce" CPG brand'
+    - '"SPS Commerce" food beverage'
+    - '"TrueCommerce" consumer brand'
+    # Shipping
+    - '"ShipStation" DTC brand'
+    - '"Flexport" CPG brand'
+
+# ── Website / BuiltWith enrichment ────────────────────────────────────────────
+# After dedup we optionally fetch each lead's company website and inspect
+# the homepage HTML for tech-stack tells (Shopify CDN, BigCommerce meta tag,
+# Klaviyo, Yotpo, ShipStation, etc.). Any hit is merged into `tech_stack`
+# and re-evaluated against DOSS_INTEGRATION_KEYWORDS so the lead's
+# `integration_match` reflects the true stack rather than press copy.
+#
+# If BUILTWITH_API_KEY is set in the environment, BuiltWith's free-tier
+# domain endpoint is queried for a deeper read.
+enrichment:
+  enabled: true
+  timeout_seconds: 6   # per-domain HTTP timeout
+
 # ── Email alerts ──────────────────────────────────────────────────────────────
 # Credentials are injected from environment variables at runtime.
 # Set these in your .env or GitHub Actions Secrets.

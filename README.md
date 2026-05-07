@@ -112,12 +112,15 @@ CPGTriggerEventSearch/
 │   ├── 003_priority_index.sql      # status/score index for DOSS triage
 │   ├── 004_add_industry_column.sql # ICP industry slice
 │   ├── 005_add_country_and_founder.sql # US/Intl tag + founder_name
-│   └── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
+│   ├── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
+│   ├── 007_add_user_industry.sql      # per-lead sales-applied industry tag
+│   └── 008_co_man_and_integrations.sql # co_man_mention + integration_match
 └── src/
     ├── main.py                      # orchestrator + scheduler + Supabase sync
     ├── models.py                    # TriggerEvent dataclass
     ├── database.py                  # Supabase client + upserts
     ├── alerts.py                    # HTML + plain-text email digest
+    ├── enrichment.py                # website + BuiltWith tech-stack enrichment
     └── scrapers/
         ├── base.py                  # shared scraper helpers
         ├── rss_scraper.py           # Google News RSS (no API key)
@@ -159,12 +162,45 @@ Each event is parsed on three axes so sales can qualify before clicking through:
 |---|---|
 | **Outreach** | `company_website` · `company_linkedin` · `founder_linkedin` · `hq_city` · `hq_state` |
 | **Viability** | `founding_year` · `employee_count` · `total_funding` (cumulative raised) · `retail_doors` (distinct major chains mentioned) · `sku_count` |
-| **DOSS fit** | `ops_pain_signal` (fulfillment/inventory/supply-chain pain language) · `three_pl_mention` (brand outgrew self-fulfillment) · `tech_stack` (Shopify/NetSuite/SAP/…) · `channel_mix` (DTC · DTC+Retail · Retail) |
+| **DOSS fit** | `ops_pain_signal` · `three_pl_mention` · `co_man_mention` · `integration_match` · `tech_stack` · `channel_mix` (DTC · DTC+Retail · Retail) |
 
-Ops-pain and 3PL flags each add +10–15 to the relevance score. Each major
-retailer mentioned in a retail expansion article adds +8 (capped). The
-dashboard sidebar has checkboxes to show **only** ops-pain or 3PL leads, plus
-a channel-mix multiselect.
+The DOSS fit signals split into four orthogonal axes — a brand that
+outsources both production AND fulfillment AND already runs on a
+DOSS-integrated stack is the textbook ICP:
+
+| Signal | Detects | Score bonus |
+|---|---|---|
+| `ops_pain_signal` | Fulfillment / inventory / supply-chain pain language | +15 |
+| `three_pl_mention` | Generic 3PL phrasing OR named 3PLs (ShipBob, ShipMonk, Stord, Saddle Creek, NFI, Radial, Quiet Logistics, Ryder, DHL Supply Chain, Flowspace, …) | +10 |
+| `co_man_mention` | "co-manufacturer", "co-packer", "contract packager", "tolling partner", "private label manufacturer", OR named co-mans (Refresco, Power Brands, Nellson, Pharmavite, Niagara Bottling, KDC/One, …) | +12 |
+| `integration_match` | Brand mentions a tool DOSS already integrates with — Shopify, NetSuite, SAP Business One, Acumatica, Sage Intacct, QuickBooks, BigCommerce, Cin7, Skubana, Extensiv, Brightpearl, ShipBob/ShipMonk/Flowspace/Stord, ShipStation, EasyPost, SPS Commerce, TrueCommerce, Faire, Gmail, … | +5 per hit (cap +15) |
+
+Each major retailer mentioned in a retail-expansion article adds +8 (capped).
+The dashboard sidebar has a **Supply-Chain Signals** section with checkboxes
+to show only ops-pain, only 3PL, only co-man, or only DOSS-integrated-stack
+leads, plus a channel-mix multiselect.
+
+### Website + BuiltWith enrichment (best-effort)
+
+Press copy rarely names a brand's 3PL or e-commerce stack, but the brand's
+own website almost always exposes it (Shopify CDN, BigCommerce meta tag,
+Klaviyo / Yotpo / Recharge / Gorgias scripts). After scraping + dedup, each
+lead's `company_website` is fetched once and the homepage HTML is
+fingerprinted for those tells. Hits are merged into `tech_stack` and
+re-evaluated against the DOSS-integration list, so `integration_match`
+reflects the brand's actual stack rather than what made it into press copy.
+
+If `BUILTWITH_API_KEY` is set, the BuiltWith free-tier domain endpoint is
+also queried for a deeper read. The whole step is wrapped in try/except —
+enrichment is strictly best-effort and never blocks event ingestion.
+
+Toggle in `config.yaml`:
+
+```yaml
+enrichment:
+  enabled: true
+  timeout_seconds: 6
+```
 
 ### Lead quality controls
 

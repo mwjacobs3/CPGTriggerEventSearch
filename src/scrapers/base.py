@@ -310,12 +310,134 @@ TECH_STACK_KEYWORDS = [
     "acumatica", "microsoft dynamics", "dynamics 365",
 ]
 
-THREE_PL_KEYWORDS = [
-    "3pl", "third-party logistics", "third party logistics",
-    "fulfillment partner", "logistics partner", "co-packer", "copacker",
-    "contract manufacturer", "fulfillment center", "fulfillment network",
-    "distribution center", "dc network",
+# Generic 3PL phrasing only — named providers live in THREE_PL_PROVIDERS so
+# we can also surface them in `tech_stack` / `integration_match`.
+THREE_PL_GENERIC_KEYWORDS = [
+    "3pl", "3-pl", "third-party logistics", "third party logistics",
+    "fulfillment partner", "logistics partner",
+    "fulfillment center", "fulfillment network",
+    "distribution center", "dc network", "warehouse partner",
+    "outsourced fulfillment", "outsourced logistics",
+    "self-fulfillment", "self fulfillment",
 ]
+
+# Named 3PL providers — substring match. A mention of any of these is a
+# very strong signal the brand outsources fulfillment.
+THREE_PL_PROVIDERS = [
+    "shipbob", "shipmonk", "shiphero", "flowspace", "stord",
+    "saddle creek", "saddle creek logistics",
+    "nfi industries", " nfi ",
+    "radial", "quiet logistics", "ryder e-commerce", "ryder ecommerce",
+    "ryder last mile", "kenco logistics", "capstone logistics",
+    "dhl supply chain", "dhl ecommerce", "xpo logistics",
+    "geodis", "ch robinson", "c.h. robinson", "uber freight",
+    "deliverr", "rakuten super logistics", "red stag fulfillment",
+    "fulfillrite", "ware2go", "easyship", "shipnetwork",
+    "ifulfill", "shipwire", "whitebox", "ohi", "cahoot",
+    "amware fulfillment", "dotcom distribution", "ruby has fulfillment",
+    "pfs commerce", "barrett distribution", "verst logistics",
+    "weber logistics", "performance team", "americold",
+    "lineage logistics", "preferred freezer",
+]
+
+# Generic co-manufacturer / co-packer phrasing.
+CO_MAN_GENERIC_KEYWORDS = [
+    "co-manufacturer", "comanufacturer", "co manufacturer",
+    "co-manufacturing", "comanufacturing", "co manufacturing",
+    "co-packer", "copacker", "co packer",
+    "co-pack", "copack", "co packing", "co-packing",
+    "contract manufacturer", "contract manufacturing",
+    "contract packager", "contract packaging",
+    "tolling partner", "tolling agreement",
+    "private label manufacturer", "private-label manufacturer",
+    "outsourced manufacturing", "outsourced production",
+    "third-party manufacturer", "third party manufacturer",
+    "white label manufacturer", "white-label manufacturer",
+]
+
+# Named co-manufacturers / contract packagers commonly mentioned in CPG press.
+# Hits here are extremely strong DOSS ICP signals — only a brand using one
+# of these would have it in their press.
+CO_MAN_PROVIDERS = [
+    "power brands",  # beverage co-man
+    "nutrablend", "nellson", "international vitamin corporation", " ivc ",
+    "hain pure protein", "bonduelle americas",
+    "treehouse foods", "advancepierre",  # also food co-man (mega-cap, separately filtered)
+    "shearer's foods", "shearers foods", "utz quality foods",
+    "cott corporation", "refresco", "niagara bottling",
+    "sovos brands",
+    "prinova", "glanbia nutritionals",
+    "thorne research",  # supplements
+    "pharmavite",  # supplements
+    "nature's way",
+    "vitaquest", "best formulations", "robinson pharma",
+    "sirio pharma", "soft gel technologies",
+    "nutralliance", "nutrastar",
+    "voyant beauty", "knowlton development", " kdc/one ",
+    "kdc one", "cosmetic solutions", "tropical labs",
+    "rocky mountain natural labs", "twincraft skincare",
+    "kolmar laboratories", "maesa", "intercos",
+    "hcp packaging",
+]
+
+# Combined for backwards compat — keep a single `_has_three_pl` check working.
+THREE_PL_KEYWORDS = THREE_PL_GENERIC_KEYWORDS + THREE_PL_PROVIDERS
+
+# ── DOSS integration partners ────────────────────────────────────────────────
+# Curated from doss.com/integrations + the categories DOSS plugs into. A brand
+# whose press names one of these is already on a DOSS-compatible stack.
+DOSS_INTEGRATION_KEYWORDS = {
+    # ERP / accounting
+    "netsuite":            "NetSuite",
+    "sap business one":    "SAP Business One",
+    "sap s/4hana":         "SAP S/4HANA",
+    "acumatica":           "Acumatica",
+    "microsoft dynamics":  "Microsoft Dynamics",
+    "dynamics 365":        "Dynamics 365",
+    "sage intacct":        "Sage Intacct",
+    "sage 100":            "Sage 100",
+    "quickbooks online":   "QuickBooks Online",
+    "quickbooks":          "QuickBooks",
+    "xero":                "Xero",
+    # E-commerce
+    "shopify plus":        "Shopify Plus",
+    "shopify":             "Shopify",
+    "bigcommerce":         "BigCommerce",
+    "woocommerce":         "WooCommerce",
+    "magento":             "Magento",
+    "amazon seller":       "Amazon Seller Central",
+    "amazon vendor":       "Amazon Vendor Central",
+    "faire":               "Faire",
+    # WMS / IMS
+    "cin7":                "Cin7",
+    "skubana":             "Skubana",
+    "extensiv":            "Extensiv",
+    "deposco":             "Deposco",
+    "manhattan associates": "Manhattan Associates",
+    "blue yonder":         "Blue Yonder",
+    "fishbowl":            "Fishbowl",
+    "brightpearl":         "Brightpearl",
+    "katana":              "Katana",
+    # 3PL platforms
+    "shipbob":             "ShipBob",
+    "shipmonk":            "ShipMonk",
+    "shiphero":            "ShipHero",
+    "flowspace":           "Flowspace",
+    "stord":               "Stord",
+    # Shipping / freight
+    "shipstation":         "ShipStation",
+    "easypost":            "EasyPost",
+    "shippo":              "Shippo",
+    "flexport":            "Flexport",
+    # EDI
+    "sps commerce":        "SPS Commerce",
+    "truecommerce":        "TrueCommerce",
+    "spscommerce":         "SPS Commerce",
+    # Email / collaboration
+    "gmail":               "Gmail",
+    "google workspace":    "Google Workspace",
+    "slack":               "Slack",
+}
 
 CHANNEL_DTC_KEYWORDS = [
     "dtc", "d2c", "direct-to-consumer", "direct to consumer",
@@ -495,11 +617,15 @@ class BaseScraper(ABC):
         ops_pain           = self._has_ops_pain(combined)
         tech_stack         = self._extract_tech_stack(combined)
         three_pl           = self._has_three_pl(combined)
+        co_man             = self._has_co_man(combined)
+        integration_match  = self._extract_doss_integrations(combined)
         channel_mix        = self._detect_channel_mix(combined)
 
         score = self._relevance_score(
             combined, event_type, keywords_hit, is_us,
             ops_pain=ops_pain, three_pl=three_pl,
+            co_man=co_man,
+            integration_count=len(integration_match),
             retail_door_count=len(retail_doors),
             total_funding=total_funding,
             employee_count=employee_count,
@@ -534,6 +660,8 @@ class BaseScraper(ABC):
             ops_pain_signal=ops_pain,
             tech_stack=tech_stack,
             three_pl_mention=three_pl,
+            co_man_mention=co_man,
+            integration_match=integration_match,
             channel_mix=channel_mix,
             person_name=self._extract_person(title, event_type),
             person_title=self._extract_person_title(title, event_type),
@@ -690,6 +818,8 @@ class BaseScraper(ABC):
         is_us: Optional[bool] = None,
         ops_pain: bool = False,
         three_pl: bool = False,
+        co_man: bool = False,
+        integration_count: int = 0,
         retail_door_count: int = 0,
         total_funding: Optional[str] = None,
         employee_count: Optional[str] = None,
@@ -721,6 +851,14 @@ class BaseScraper(ABC):
             score += 15
         if three_pl:
             score += 10
+        # Co-man signals are core DOSS ICP — a brand outsourcing production
+        # has the inventory/PO complexity DOSS exists to manage.
+        if co_man:
+            score += 12
+        # Integration-stack hits mean the brand already runs on tools DOSS
+        # plugs into (Shopify, NetSuite, SPS Commerce, etc.). Cap the bonus.
+        if integration_count > 0:
+            score += min(integration_count * 5, 15)
 
         # ── Size-band signals ($5M–$500M revenue proxy) ───────────────────
         funding_usd = self._parse_funding_usd(total_funding)
@@ -929,6 +1067,23 @@ class BaseScraper(ABC):
 
     def _has_three_pl(self, text: str) -> bool:
         return any(kw in text for kw in THREE_PL_KEYWORDS) if text else False
+
+    def _has_co_man(self, text: str) -> bool:
+        if not text:
+            return False
+        if any(kw in text for kw in CO_MAN_GENERIC_KEYWORDS):
+            return True
+        return any(kw in text for kw in CO_MAN_PROVIDERS)
+
+    def _extract_doss_integrations(self, text: str) -> list[str]:
+        """Return the list of canonical DOSS-integration product names found in text."""
+        if not text:
+            return []
+        found: list[str] = []
+        for needle, label in DOSS_INTEGRATION_KEYWORDS.items():
+            if needle in text and label not in found:
+                found.append(label)
+        return found
 
     def _detect_channel_mix(self, text: str) -> Optional[str]:
         if not text:
