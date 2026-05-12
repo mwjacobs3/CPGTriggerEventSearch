@@ -180,7 +180,7 @@ The dashboard sidebar has a **Supply-Chain Signals** section with checkboxes
 to show only ops-pain, only 3PL, only co-man, or only DOSS-integrated-stack
 leads, plus a channel-mix multiselect.
 
-### Website + BuiltWith enrichment (best-effort)
+### Website-stack enrichment (best-effort, no API key needed)
 
 Press copy rarely names a brand's 3PL or e-commerce stack, but the brand's
 own website almost always exposes it (Shopify CDN, BigCommerce meta tag,
@@ -190,11 +190,8 @@ fingerprinted for those tells. Hits are merged into `tech_stack` and
 re-evaluated against the DOSS-integration list, so `integration_match`
 reflects the brand's actual stack rather than what made it into press copy.
 
-If `BUILTWITH_API_KEY` is set, the BuiltWith free-tier domain endpoint is
-also queried for a deeper read. The whole step is wrapped in try/except —
-enrichment is strictly best-effort and never blocks event ingestion.
-
-Toggle in `config.yaml`:
+The whole step is wrapped in try/except — enrichment is strictly
+best-effort and never blocks event ingestion. Toggle in `config.yaml`:
 
 ```yaml
 enrichment:
