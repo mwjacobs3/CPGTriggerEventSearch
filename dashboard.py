@@ -19,12 +19,18 @@ try:
     from src.scrapers.base import INDUSTRY_LABELS
 except Exception:
     INDUSTRY_LABELS = {
-        "food_beverage":        "Food & Beverage",
-        "health_beauty":        "Health & Beauty",
-        "wellness_supplements": "Supplements & Wellness",
-        "household_home":       "Household & Home",
-        "pet":                  "Pet & Specialty",
-        "other_cpg":            "Consumer Goods (Other)",
+        "food_beverage":           "Food & Beverage",
+        "health_beauty":           "Health & Beauty",
+        "wellness_supplements":    "Supplements & Wellness",
+        "household_home":          "Household & Home",
+        "pet":                     "Pet & Specialty",
+        "apparel":                 "Apparel & Soft Goods",
+        "consumer_electronics":    "Consumer Electronics",
+        "games_toys":              "Games, Toys & Hobbies",
+        "baby_kids":               "Baby & Kids",
+        "distribution_platforms":  "Distribution & Brand Platforms",
+        "industrial_manufacturing": "Industrial & Manufacturing",
+        "other_cpg":               "Consumer Goods (Other)",
     }
 
 st.set_page_config(

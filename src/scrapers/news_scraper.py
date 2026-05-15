@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import urllib.parse
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import feedparser
 
@@ -41,7 +41,11 @@ class GoogleNewsScraper(BaseScraper):
         }
 
         for type_key, queries in self.queries_by_type.items():
-            event_type = type_map.get(type_key, EventType.OTHER)
+            # Unmapped query buckets (supply_chain_footprint, integration_stack,
+            # vertical-specific launch blocks) auto-classify off the article
+            # text instead of getting stuck as OTHER — otherwise their keyword
+            # bonus never fires and they fall below the relevance gate.
+            event_type = type_map.get(type_key)
             found_this_type = 0
 
             for query in queries:
@@ -62,7 +66,7 @@ class GoogleNewsScraper(BaseScraper):
 
         return events
 
-    def _fetch(self, query: str, event_type: EventType) -> list[TriggerEvent]:
+    def _fetch(self, query: str, event_type: Optional[EventType]) -> list[TriggerEvent]:
         params = {
             "q": query,
             "hl": "en-US",

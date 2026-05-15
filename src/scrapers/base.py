@@ -463,12 +463,18 @@ RETAIL_ENTRY_SIGNALS = [
 
 # ── Industry classification (DOSS ICP slices) ────────────────────────────────
 INDUSTRY_LABELS = {
-    "food_beverage":        "Food & Beverage",
-    "health_beauty":        "Health & Beauty",
-    "wellness_supplements": "Supplements & Wellness",
-    "household_home":       "Household & Home",
-    "pet":                  "Pet & Specialty",
-    "other_cpg":            "Consumer Goods (Other)",
+    "food_beverage":           "Food & Beverage",
+    "health_beauty":           "Health & Beauty",
+    "wellness_supplements":    "Supplements & Wellness",
+    "household_home":          "Household & Home",
+    "pet":                     "Pet & Specialty",
+    "apparel":                 "Apparel & Soft Goods",
+    "consumer_electronics":    "Consumer Electronics",
+    "games_toys":              "Games, Toys & Hobbies",
+    "baby_kids":               "Baby & Kids",
+    "distribution_platforms":  "Distribution & Brand Platforms",
+    "industrial_manufacturing": "Industrial & Manufacturing",
+    "other_cpg":               "Consumer Goods (Other)",
 }
 
 INDUSTRY_KEYWORDS = {
@@ -500,16 +506,66 @@ INDUSTRY_KEYWORDS = {
         "pet food", "pet brand", "pet care", "pet wellness", "dog food",
         "cat food", "pet treat", "pet supplement", "petsmart", "petco",
     ],
+    "apparel": [
+        "apparel", "clothing", "fashion brand", "activewear", "athleisure",
+        "performance wear", "outerwear", "footwear", "swimwear",
+        "kids apparel", "children's apparel", "pet apparel", "loungewear",
+        "intimates", "underwear brand", "sleepwear", "recommerce",
+        "secondhand apparel", "resale apparel", "textile cleaning",
+    ],
+    "consumer_electronics": [
+        "smart mattress", "sleep tech", "connected fitness", "smart home",
+        "wearable device", "wearable tech", "smart bud", "earbuds",
+        "consumer electronics", "smart device", "connected hardware",
+        "connected device", "fitness equipment", "home gym",
+        "smart speaker", "smart appliance", "iot device",
+        "remote work hardware", "work-from-home equipment",
+    ],
+    "games_toys": [
+        "tabletop game", "board game", "card game", "toy brand",
+        "game brand", "craft kit", "diy kit", "hobby kit", "outdoor game",
+        "puzzle brand", "play set", "children's toy", "indie game",
+        "party game", "lawn game", "family game",
+    ],
+    "baby_kids": [
+        "baby care", "baby brand", "pediatric", "infant care",
+        "kids health", "children's health", "baby product",
+        "nursery brand", "newborn care", "toddler brand",
+        "kids wellness", "children's wellness", "maternity",
+    ],
+    "distribution_platforms": [
+        "wholesale distributor", "distribution platform", "distribution company",
+        "brand management platform", "sourcing platform",
+        "reverse logistics", "returns management platform",
+        "3pl platform", "fulfillment platform",
+        "private label platform", "co-manufacturing marketplace",
+        "supply chain platform", "wholesale platform",
+        "b2b distribution", "brand aggregator",
+    ],
+    "industrial_manufacturing": [
+        "industrial manufacturer", "industrial products", "industrial goods",
+        "safety equipment", "construction gear", "construction supply",
+        "industrial supply", "mro supplies", "tooling manufacturer",
+        "fasteners", "industrial fasteners",
+    ],
 }
 
 # RSS feed "category" hint → industry key
 RSS_CATEGORY_TO_INDUSTRY = {
-    "food & beverage":         "food_beverage",
-    "beverage":                "food_beverage",
-    "retail / grocery":        "food_beverage",
-    "health & beauty":         "health_beauty",
-    "supplements & wellness":  "wellness_supplements",
-    "pet / specialty":         "pet",
+    "food & beverage":             "food_beverage",
+    "beverage":                    "food_beverage",
+    "retail / grocery":            "food_beverage",
+    "health & beauty":             "health_beauty",
+    "supplements & wellness":      "wellness_supplements",
+    "pet / specialty":             "pet",
+    "apparel & soft goods":        "apparel",
+    "apparel":                     "apparel",
+    "consumer electronics":        "consumer_electronics",
+    "games & toys":                "games_toys",
+    "baby & kids":                 "baby_kids",
+    "supply chain & logistics":    "distribution_platforms",
+    "distribution & 3pl":          "distribution_platforms",
+    "industrial":                  "industrial_manufacturing",
 }
 
 
@@ -776,13 +832,35 @@ class BaseScraper(ABC):
 
     def _is_cpg_relevant(self, text: str) -> bool:
         cpg_terms = [
+            # Food / bev / wellness
             "food", "beverage", "drink", "snack", "grocery", "nutrition",
             "supplement", "vitamin", "health", "beauty", "wellness", "skincare",
             "haircare", "cosmetic", "personal care", "household", "cleaning",
+            # General CPG
             "cpg", "consumer packaged goods", "consumer goods", "fmcg",
-            "brand", "retail", "dtc", "direct to consumer", "e-commerce",
+            "brand", "retail", "dtc", "direct to consumer", "d2c",
+            "e-commerce", "ecommerce", "shopify",
+            # Ops / supply chain
             "supply chain", "operations", "logistics", "fulfillment",
+            "co-manufacturer", "co-packer", "contract manufacturer",
+            "3pl", "third-party logistics", "warehouse",
+            # Positioning
             "natural", "organic", "plant-based", "clean label", "functional",
+            # Apparel
+            "apparel", "clothing", "fashion brand", "activewear", "athleisure",
+            "footwear", "loungewear",
+            # Consumer electronics / hardware
+            "consumer electronics", "smart home", "smart device", "wearable",
+            "connected fitness", "connected hardware", "sleep tech",
+            # Games / toys / hobbies
+            "toy brand", "game brand", "tabletop game", "board game",
+            "craft kit", "diy kit", "hobby kit",
+            # Baby / kids
+            "baby brand", "baby care", "pediatric", "infant", "kids brand",
+            # Distribution platforms
+            "wholesale distribution", "distribution platform",
+            "sourcing platform", "brand management platform",
+            "reverse logistics", "3pl platform", "fulfillment platform",
         ]
         return any(t in text for t in cpg_terms)
 
@@ -855,6 +933,11 @@ class BaseScraper(ABC):
         # has the inventory/PO complexity DOSS exists to manage.
         if co_man:
             score += 12
+        # Launch + outsourced ops is the DOSS sweet spot: a brand going to
+        # market with a co-man or 3PL has the exact inventory/PO complexity
+        # DOSS exists to solve. Stack on top of the individual bonuses.
+        if event_type == EventType.PRODUCT_LAUNCH and (three_pl or co_man):
+            score += 15
         # Integration-stack hits mean the brand already runs on tools DOSS
         # plugs into (Shopify, NetSuite, SPS Commerce, etc.). Cap the bonus.
         if integration_count > 0:
