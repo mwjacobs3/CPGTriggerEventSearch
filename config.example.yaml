@@ -419,6 +419,82 @@ rss_feeds:
     event_types: ["product_launch", "funding"]
     category: "Supplements & Wellness"
 
+  # ── Supply Chain / Logistics / 3PL ───────────────────────────────────────────
+  # Where co-manufacturer + 3PL partnership stories actually break.
+  - name: "Supply Chain Dive"
+    url: "https://www.supplychaindive.com/feeds/news/"
+    event_types: ["product_launch", "exec_hire", "funding"]
+    category: "Supply Chain & Logistics"
+
+  - name: "Food Logistics"
+    url: "https://www.foodlogistics.com/rss"
+    event_types: ["product_launch", "retail_expansion", "exec_hire"]
+    category: "Supply Chain & Logistics"
+
+  - name: "DC Velocity"
+    url: "https://www.dcvelocity.com/rss"
+    event_types: ["product_launch", "exec_hire"]
+    category: "Supply Chain & Logistics"
+
+  - name: "Inbound Logistics"
+    url: "https://www.inboundlogistics.com/rss.xml"
+    event_types: ["product_launch", "exec_hire"]
+    category: "Supply Chain & Logistics"
+
+  - name: "Logistics Management"
+    url: "https://www.logisticsmgmt.com/rss/news"
+    event_types: ["product_launch", "exec_hire", "funding"]
+    category: "Supply Chain & Logistics"
+
+  - name: "Modern Materials Handling"
+    url: "https://www.mmh.com/rss/news"
+    event_types: ["product_launch", "exec_hire"]
+    category: "Supply Chain & Logistics"
+
+  # ── Contract Manufacturing / Co-Packing ──────────────────────────────────────
+  - name: "Food Engineering"
+    url: "https://www.foodengineeringmag.com/rss/articles"
+    event_types: ["product_launch", "funding"]
+    category: "Supply Chain & Logistics"
+
+  - name: "Refrigerated & Frozen Foods"
+    url: "https://www.refrigeratedfrozenfood.com/rss/articles"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Food & Beverage"
+
+  - name: "Contract Pharma"
+    url: "https://www.contractpharma.com/rss/articles"
+    event_types: ["product_launch", "funding"]
+    category: "Supplements & Wellness"
+
+  # ── Apparel / Soft Goods ─────────────────────────────────────────────────────
+  - name: "Sourcing Journal"
+    url: "https://sourcingjournal.com/feed/"
+    event_types: ["product_launch", "retail_expansion", "funding"]
+    category: "Apparel & Soft Goods"
+
+  - name: "Fashion Dive"
+    url: "https://www.fashiondive.com/feeds/news/"
+    event_types: ["product_launch", "retail_expansion", "funding"]
+    category: "Apparel & Soft Goods"
+
+  # ── Baby / Kids ──────────────────────────────────────────────────────────────
+  - name: "Earnshaw's"
+    url: "https://www.earnshaws.com/feed/"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Baby & Kids"
+
+  # ── Toys / Games / Hobbies ───────────────────────────────────────────────────
+  - name: "The Toy Book"
+    url: "https://toybook.com/feed/"
+    event_types: ["product_launch", "retail_expansion", "funding"]
+    category: "Games & Toys"
+
+  - name: "The Toy Insider"
+    url: "https://thetoyinsider.com/feed/"
+    event_types: ["product_launch", "retail_expansion"]
+    category: "Games & Toys"
+
   # ── DTC / Omnichannel ─────────────────────────────────────────────────────────
   - name: "Modern Retail"
     url: "https://www.modernretail.co/feed/"
@@ -509,6 +585,31 @@ google_news_queries:
     - "DTC brand launch consumer goods"
     - "indie brand launch US CPG"
     - "founder-led brand launch US market"
+    # Specialty / functional patterns (matches DOSS customer profile —
+    # Magic Mind, Mezcla, Coaqua, Sauz, Spread The Love, Verve, Kahawa, Yough!)
+    - "functional shot brand launch US"
+    - "functional beverage brand launch DTC"
+    - "specialty coffee brand launch US"
+    - "coffee roaster brand launch US retail"
+    - "premium pasta sauce brand launch"
+    - "nut butter brand launch US"
+    - "frozen pizza brand launch DTC"
+    - "plant-based protein bar launch US"
+    - "coconut water brand launch US"
+    - "functional productivity drink launch"
+    # Launch + outsourced ops combo — the DOSS sweet spot. A brand launching
+    # while naming a co-packer / co-manufacturer / 3PL is the highest-fit
+    # signal we can mine from press.
+    - '"launches" "co-packer"'
+    - '"launches" "co-manufacturer"'
+    - '"new product" "co-manufacturer" CPG brand'
+    - '"new product launch" "contract manufacturer"'
+    - '"launches" "fulfillment partner" DTC brand'
+    - '"launches with" "3PL" CPG brand'
+    - 'CPG brand launch "third-party logistics"'
+    - 'food beverage brand "co-packing partner" launch'
+    - 'supplement brand launch "contract manufacturer"'
+    - 'beauty brand launch "contract manufacturer"'
 
   retail_expansion:
     # Grocery
@@ -671,6 +772,105 @@ google_news_queries:
     # Shipping
     - '"ShipStation" DTC brand'
     - '"Flexport" CPG brand'
+
+  # Vertical-specific launch queries. The news scraper auto-classifies each
+  # result against the keyword sets in `keywords:` above, so a "kids apparel
+  # brand launches at Target" article still routes to product_launch /
+  # retail_expansion correctly.
+
+  # ── Consumer electronics / connected hardware ────────────────────────────────
+  # Matches DOSS customers Eight Sleep, Echelon, Ozlo, Firstbase, Snow.
+  consumer_electronics:
+    - "sleep tech brand launch US"
+    - "smart mattress brand launch"
+    - "connected fitness brand launch US"
+    - "smart home device brand launch DTC"
+    - "wearable device startup launch US"
+    - "smart earbuds brand launch US"
+    - "consumer electronics brand DTC launch"
+    - "connected hardware brand raises Series A"
+    - "remote work hardware brand launch"
+    - "home fitness equipment brand launch DTC"
+    - "sleep tech startup raises funding"
+    - "connected fitness startup raises Series B"
+    - "smart device brand co-manufacturer"
+    - "consumer hardware brand contract manufacturer"
+    - "consumer electronics brand 3PL"
+
+  # ── Apparel / soft goods ─────────────────────────────────────────────────────
+  # Matches DOSS customers Little Beast, Tersus Solutions.
+  apparel:
+    - "DTC apparel brand launch US"
+    - "kids apparel brand launch DTC"
+    - "children's clothing brand launch US"
+    - "pet apparel brand launch"
+    - "performance apparel brand launch DTC"
+    - "athleisure brand launch US"
+    - "loungewear brand launch DTC"
+    - "indie fashion brand launch US"
+    - "swimwear brand launch DTC"
+    - "footwear brand launch DTC"
+    - "apparel brand raises Series A"
+    - "apparel brand 3PL fulfillment partner"
+    - "apparel brand contract manufacturer"
+    - "recommerce brand raises funding"
+    - "textile recycling brand raises"
+
+  # ── Games / toys / hobbies ───────────────────────────────────────────────────
+  # Matches DOSS customers Popdarts, Carrom, Sculpd.
+  games_toys:
+    - "tabletop game brand launch US"
+    - "board game brand launch DTC"
+    - "indie game studio launch consumer"
+    - "party game brand launch US"
+    - "outdoor lawn game brand launch"
+    - "craft kit brand launch DTC"
+    - "DIY kit brand launch US"
+    - "hobby kit brand launch US"
+    - "toy brand launch DTC US"
+    - "consumer game brand raises seed"
+    - "toy brand raises Series A"
+    - "craft brand contract manufacturer"
+    - "toy brand 3PL fulfillment partner"
+
+  # ── Baby / kids / pediatric ──────────────────────────────────────────────────
+  # Matches DOSS customer Dr. Noze Best (and adjacent to W-Wellness,
+  # Tampon Tribe family/femcare).
+  baby_kids:
+    - "baby care brand launch DTC"
+    - "pediatric health brand launch US"
+    - "kids wellness brand launch US"
+    - "children's health brand launch DTC"
+    - "infant care brand launch US"
+    - "newborn care brand launch DTC"
+    - "baby brand raises Series A"
+    - "baby brand raises seed round"
+    - "kids nutrition brand launch"
+    - "toddler brand launch DTC"
+    - "maternity brand launch DTC"
+    - "baby brand co-manufacturer"
+    - "kids brand 3PL fulfillment"
+
+  # ── Distribution / brand-management / 3PL platforms ──────────────────────────
+  # The companies that BUILD the supply chain DOSS plugs into. Matches
+  # DOSS customers Sourcify, Merrigo, Mersi Distribution, BRND Direct,
+  # USA Supply Source, SPS Commerce.
+  distribution_platforms:
+    - "wholesale distribution platform raises"
+    - "brand management platform raises funding"
+    - "sourcing platform CPG raises"
+    - "manufacturing platform CPG raises"
+    - "reverse logistics platform raises"
+    - "returns management platform raises"
+    - "3PL platform raises funding"
+    - "fulfillment platform raises Series A"
+    - "supply chain platform CPG raises"
+    - "co-manufacturing marketplace raises"
+    - "private label platform raises"
+    - "brand aggregator raises funding"
+    - "wholesale platform CPG raises"
+    - "B2B distribution platform launches"
+    - "EDI platform CPG launches"
 
 # ── Website-stack enrichment ──────────────────────────────────────────────────
 # After dedup we fetch each lead's company website and inspect the homepage
