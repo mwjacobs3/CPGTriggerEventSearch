@@ -291,14 +291,24 @@ keywords:
 # ── RSS feed sources ──────────────────────────────────────────────────────────
 # Add / remove feeds here. event_types is informational only (for logging).
 rss_feeds:
-  # ── Startup CPG Newswire — emerging-brand press releases (perfect DOSS ICP) ──
-  # Mid-market / early CPG brands announcing launches, retail wins, funding, and
-  # exec hires. Category is intentionally generic so per-article keyword
-  # classification picks the industry (food, beauty, pet, etc.).
+  # ── Emerging-brand & funding sources (highest-signal for the DOSS ICP) ──────
+  # Early / mid-market CPG brands announcing launches, retail wins, funding, and
+  # exec hires. Categories are kept generic where a feed spans verticals so
+  # per-article keyword classification picks the industry (food, beauty, pet…).
   - name: "Startup CPG Newswire"
     url: "https://startupcpg.com/category/newswire/feed/"
     event_types: ["product_launch", "funding", "retail_expansion", "exec_hire"]
     category: "Consumer Goods"
+
+  - name: "NOSH"   # emerging food & beverage brands — launches, distribution, hires
+    url: "https://www.nosh.com/feed/"
+    event_types: ["product_launch", "retail_expansion", "exec_hire", "funding"]
+    category: "Food & Beverage"
+
+  - name: "AgFunderNews"   # food & CPG funding rounds
+    url: "https://agfundernews.com/feed"
+    event_types: ["funding"]
+    category: "Food & Beverage"
 
   # ── Food & Beverage ───────────────────────────────────────────────────────────
   - name: "Food Dive"
