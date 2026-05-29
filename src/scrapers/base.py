@@ -111,6 +111,42 @@ EXCLUDED_MEGA_SUBJECTS = [
 # Legacy alias — preserved so older configs that reference this still load.
 EXCLUDED_COMPANIES = EXCLUDED_MEGA_CPG
 
+# ── Non-CPG sector exclusions ────────────────────────────────────────────────
+# DOSS sells to physical consumer-packaged-goods brands. The general business /
+# tech funding feeds (TechCrunch, VentureBeat, Crunchbase, …) are dominated by
+# AI / SaaS / fintech / biotech stories that match our funding & launch keywords
+# but are NOT our ICP. An article hitting any of these is dropped UNLESS it also
+# carries a concrete CPG industry signal (so "AI-powered skincare" survives).
+NON_CPG_SECTOR_KEYWORDS = [
+    # AI / data / dev infrastructure
+    "artificial intelligence", " ai ", " ai-", "ai-powered", "ai model",
+    "generative ai", "genai", "machine learning", "deep learning",
+    "large language model", " llm ", " llms ", "openai", "anthropic",
+    "chatbot", "neural network", "data center", "gpu cluster",
+    "developer platform", "developer tool", "api platform", "devops",
+    "cloud computing", "cloud platform", "enterprise software",
+    "saas platform", " saas ", "software-as-a-service", "no-code", "low-code",
+    "cybersecurity", "data analytics platform", "observability",
+    # Fintech / crypto / web3
+    "fintech", "neobank", "payments platform", "insurtech", "regtech",
+    "cryptocurrency", " crypto ", "blockchain", "web3", " nft ", "stablecoin",
+    "digital asset", "trading platform",
+    # Deep tech / hardware (non-consumer)
+    "semiconductor", "chipmaker", "quantum computing", "robotics startup",
+    "autonomous vehicle", "self-driving", "electric vehicle", " ev maker",
+    "aerospace", "defense contractor", "satellite", "drone startup",
+    "solar energy", "renewable energy", "battery startup", "nuclear",
+    # Bio / pharma / medtech (distinct from CPG supplements/beauty)
+    "biotech", "biotechnology", "pharmaceutical", "drug developer",
+    "drugmaker", "clinical trial", "therapeutics", "gene therapy",
+    "medical device", "diagnostics platform", "digital health platform",
+    "healthtech", "telehealth", "ehr ",
+    # Other clearly-not-CPG verticals
+    "real estate platform", "proptech", "edtech", "adtech", "martech platform",
+    "video game studio", "game developer", "esports", "streaming service",
+    "ride-hailing", "ride sharing", "gig economy", "hr software", "legaltech",
+]
+
 # Positive signals that a company is in the right size band
 TARGET_SIZE_SIGNALS = [
     "series a", "series b", "seed round", "bootstrap", "emerging brand",
@@ -648,7 +684,24 @@ class BaseScraper(ABC):
             event_type = self._classify(combined)
 
         keywords_hit = self._matched_keywords(combined, event_type)
-        if not keywords_hit and not self._is_cpg_relevant(combined):
+
+        # A concrete CPG industry match (food, beauty, pet, …) is the strongest
+        # positive signal; an RSS feed category hint counts too (e.g. the
+        # Startup CPG Newswire is CPG by definition).
+        has_cpg_industry = (
+            self._has_cpg_industry_signal(combined)
+            or bool(self._hint_to_industry(industry_hint))
+        )
+
+        # Reject clearly non-CPG sectors (AI / SaaS / fintech / biotech / …)
+        # unless the article ALSO has a concrete CPG signal ("AI skincare brand").
+        if self._is_non_cpg_sector(combined) and not has_cpg_industry:
+            return None
+
+        # Require a POSITIVE CPG signal. An event-type keyword alone ("launches",
+        # "raises", "Series A") is not enough — every tech/finance story matches
+        # those, which is how AI funding news leaked into the pipeline.
+        if not (has_cpg_industry or self._is_cpg_relevant(combined)):
             return None
 
         is_us, country     = self._detect_country(original, combined)
@@ -824,11 +877,39 @@ class BaseScraper(ABC):
         best_key = max(scores, key=lambda k: scores[k])
         if scores[best_key] > 0:
             return best_key
-        if hint:
-            mapped = RSS_CATEGORY_TO_INDUSTRY.get(hint.strip().lower())
-            if mapped:
-                return mapped
+        mapped = self._hint_to_industry(hint)
+        if mapped:
+            return mapped
         return "other_cpg"
+
+    @staticmethod
+    def _hint_to_industry(hint: Optional[str]) -> Optional[str]:
+        """Map an RSS feed category hint to an industry key, or None."""
+        if not hint:
+            return None
+        return RSS_CATEGORY_TO_INDUSTRY.get(hint.strip().lower())
+
+    def _has_cpg_industry_signal(self, text: str) -> bool:
+        """True if the text matches a concrete CPG industry vocabulary
+        (food, beauty, supplements, pet, …). This is the strong positive
+        signal that an article is actually about a consumer brand — as opposed
+        to merely matching a generic funding/launch keyword."""
+        if not text:
+            return False
+        return any(
+            kw in text
+            for kws in INDUSTRY_KEYWORDS.values()
+            for kw in kws
+        )
+
+    def _is_non_cpg_sector(self, text: str) -> bool:
+        """True if the article is clearly about a non-CPG sector — AI, SaaS,
+        fintech, biotech, crypto, etc. Used to filter the general tech/funding
+        feeds that otherwise flood the pipeline with off-ICP companies."""
+        if not text:
+            return False
+        padded = f" {text} "
+        return any(kw in padded for kw in NON_CPG_SECTOR_KEYWORDS)
 
     def _is_cpg_relevant(self, text: str) -> bool:
         cpg_terms = [
@@ -904,6 +985,21 @@ class BaseScraper(ABC):
     ) -> float:
         score = min(len(keywords_hit) * 15, 60)  # up to 60 from keyword hits
 
+        # Concrete CPG industry match (food/beauty/pet/…) is the clearest sign
+        # this is actually our ICP. Reward it; down-weight generic articles that
+        # only cleared the relevance gate on a soft term like "brand"/"retail".
+        if self._has_cpg_industry_signal(text):
+            score += 22
+        else:
+            score -= 12
+
+        # Explicit CPG / consumer-brand framing is a further strong signal.
+        if any(t in text for t in (
+            "cpg", "consumer packaged goods", "consumer goods",
+            "consumer brand", "consumer-brand", "better-for-you",
+        )):
+            score += 12
+
         # Bonus for target-size signals
         if any(s in text for s in TARGET_SIZE_SIGNALS):
             score += 20
@@ -912,8 +1008,10 @@ class BaseScraper(ABC):
         if event_type == EventType.RETAIL_EXPANSION and retail_door_count > 0:
             score += min(retail_door_count * 8, 24)
 
-        # Penalty for very generic / low-signal articles
-        if len(keywords_hit) == 0:
+        # Penalty for very generic / low-signal articles — but don't punish a
+        # confirmed CPG brand just because its phrasing didn't match our
+        # trigger-keyword lists (the categorical CPG filter already vouched for it).
+        if len(keywords_hit) == 0 and not self._has_cpg_industry_signal(text):
             score -= 20
 
         # Territory bias: DOSS sells into US supply chains first.

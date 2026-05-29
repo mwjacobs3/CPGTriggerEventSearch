@@ -10,7 +10,7 @@ scraper:
   request_delay: 1.5                # Seconds between HTTP requests
   timeout: 30
   user_agent: "Mozilla/5.0 (compatible; CPGTriggerEventSearch/2.0)"
-  min_relevance_score: 50           # 0 = keep everything. Raise to 50–60 to send only strong leads downstream.
+  min_relevance_score: 40           # 0 = keep everything. Non-CPG sectors (AI/SaaS/fintech/…) are now filtered categorically, so this gate can stay lower to keep genuine CPG leads that lack funding-size/US signals. Raise toward 50–60 to send only the strongest leads.
 
 # ── Territory / ICP filters ───────────────────────────────────────────────────
 # DOSS target: mid-market ($5M–$500M) US-based CPG companies.
