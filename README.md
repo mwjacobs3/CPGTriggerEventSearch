@@ -50,9 +50,17 @@ cp .env.example .env
 ### 2. Set up Supabase
 
 1. Create a project at [app.supabase.com](https://app.supabase.com).
-2. SQL Editor → paste [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql) → Run.
+2. SQL Editor → paste [`supabase/schema.sql`](supabase/schema.sql) → Run. This one
+   file is the **complete, idempotent schema** (the union of every migration in
+   `supabase/migrations/`). Run it on a new *or* existing project to bring it
+   fully up to date — it only adds what's missing and never drops data.
+   > ⚠️ Don't stop at `001_init.sql`. The scraper writes ~40 columns added across
+   > migrations `002`–`008`; if even one is missing, **every insert fails
+   > silently** and the table stops growing. `schema.sql` exists so this can't
+   > happen. (The scraper also self-checks on startup via `verify_schema()`.)
 3. Grab the project URL, the **anon key** (dashboard), and the **service_role key** (scraper).
-4. Fill them into `.env`.
+4. Fill them into `.env`. The dashboard's `SUPABASE_URL`/`SUPABASE_KEY` **must
+   point at the same project** as the scraper's `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`.
 
 ### 3. Run locally
 
@@ -106,15 +114,17 @@ CPGTriggerEventSearch/
 ├── .env.example
 ├── .streamlit/config.toml           # dashboard theme + server settings
 ├── .github/workflows/scraper.yml    # cron: every 4 hours
-├── supabase/migrations/
-│   ├── 001_init.sql                # events + source_status + RLS
-│   ├── 002_add_event_columns.sql   # exec hire + funding detail fields
-│   ├── 003_priority_index.sql      # status/score index for DOSS triage
-│   ├── 004_add_industry_column.sql # ICP industry slice
-│   ├── 005_add_country_and_founder.sql # US/Intl tag + founder_name
-│   ├── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
-│   ├── 007_add_user_industry.sql      # per-lead sales-applied industry tag
-│   └── 008_co_man_and_integrations.sql # co_man_mention + integration_match
+├── supabase/
+│   ├── schema.sql                  # ⭐ COMPLETE idempotent schema — run this one
+│   └── migrations/
+│       ├── 001_init.sql                # events + source_status + RLS
+│       ├── 002_add_event_columns.sql   # exec hire + funding detail fields
+│       ├── 003_priority_index.sql      # status/score index for DOSS triage
+│       ├── 004_add_industry_column.sql # ICP industry slice
+│       ├── 005_add_country_and_founder.sql # US/Intl tag + founder_name
+│       ├── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
+│       ├── 007_add_user_industry.sql      # per-lead sales-applied industry tag
+│       └── 008_co_man_and_integrations.sql # co_man_mention + integration_match
 └── src/
     ├── main.py                      # orchestrator + scheduler + Supabase sync
     ├── models.py                    # TriggerEvent dataclass

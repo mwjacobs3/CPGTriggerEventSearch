@@ -29,6 +29,24 @@ def _event_id(url: str, title: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+# Every column the scraper writes via TriggerEvent.to_dict(). If ANY of these is
+# missing from the events table, PostgREST rejects the whole row and every
+# save_event() fails — invisible unless you read the logs. verify_schema()
+# checks for this up front and points at supabase/schema.sql to fix it.
+EXPECTED_EVENT_COLUMNS = [
+    "id", "event_type", "title", "company_name", "company_location",
+    "company_country", "is_us_company", "industry", "company_website",
+    "company_linkedin", "founder_linkedin", "hq_city", "hq_state",
+    "founding_year", "employee_count", "total_funding", "retail_doors",
+    "sku_count", "ops_pain_signal", "tech_stack", "three_pl_mention",
+    "co_man_mention", "integration_match", "channel_mix", "description",
+    "source_name", "source_url", "published_date", "discovered_at",
+    "person_name", "person_title", "founder_name", "funding_amount",
+    "funding_round", "matched_keywords", "relevance_score", "query",
+    "lead_status",
+]
+
+
 class SupabaseManager:
     """Direct Supabase client — replaces SQLite + supabase_sync pattern."""
 
@@ -48,6 +66,30 @@ class SupabaseManager:
             return None
         self._client = create_client(url, key)
         return self._client
+
+    # ── Schema guard ────────────────────────────────────────────────────────────
+
+    def verify_schema(self) -> bool:
+        """Confirm the events table has every column the scraper writes.
+
+        A single missing column makes PostgREST reject every insert, silently
+        freezing the table. Selecting all expected columns at once surfaces the
+        problem before a single event is scraped. Returns True if OK (or if we
+        can't check), False if a column is missing."""
+        client = self._get_client()
+        if not client:
+            return True  # nothing to check; save_event already warns when unconfigured
+        try:
+            client.table("events").select(",".join(EXPECTED_EVENT_COLUMNS)).limit(1).execute()
+            return True
+        except Exception as exc:
+            print(
+                "[DB] SCHEMA MISMATCH — the events table is missing a column the "
+                f"scraper writes, so saves WILL fail:\n      {exc}\n"
+                "      Fix: run supabase/schema.sql in the Supabase SQL Editor "
+                "(it adds any missing columns idempotently)."
+            )
+            return False
 
     # ── Deduplication ─────────────────────────────────────────────────────────
 
@@ -86,7 +128,14 @@ class SupabaseManager:
             self._seen_this_run.add(data["id"])
             return True
         except Exception as exc:
-            print(f"[DB] save_event error: {exc}")
+            msg = str(exc)
+            if "column" in msg.lower() or "schema cache" in msg.lower():
+                print(
+                    f"[DB] save_event error (schema mismatch): {exc}\n"
+                    "      Run supabase/schema.sql to add the missing column."
+                )
+            else:
+                print(f"[DB] save_event error: {exc}")
             return False
 
     def get_recent_events(self, hours: int = 24) -> list:
