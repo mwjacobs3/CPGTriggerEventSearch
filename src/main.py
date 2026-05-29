@@ -144,11 +144,25 @@ class TriggerEventMonitor:
 
         # Save + alert
         saved = 0
+        failed = 0
         for event in new_events:
             if self.db.save_event(event):
                 saved += 1
+            else:
+                failed += 1
 
         print(f"  Saved to Supabase: {saved}")
+        # A non-zero new-event batch that saves nothing means every insert was
+        # rejected (e.g. a schema/column mismatch) — surface it loudly instead
+        # of letting the table silently stop growing.
+        if failed and saved == 0:
+            print(
+                f"  WARNING: all {failed} new events FAILED to save to Supabase. "
+                "Likely a schema mismatch between models.to_dict() and the "
+                "events table — check the [DB] save_event errors above."
+            )
+        elif failed:
+            print(f"  WARNING: {failed} of {len(new_events)} events failed to save.")
 
         if new_events:
             handlers = self.alert_manager.send_alerts(new_events)
