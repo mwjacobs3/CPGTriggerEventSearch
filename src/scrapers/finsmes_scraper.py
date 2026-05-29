@@ -16,34 +16,16 @@ from ..models import EventSource, EventType, TriggerEvent
 from .base import BaseScraper
 
 
+# CPG-focused funding feeds only. The general tech/business feeds (TechCrunch,
+# Crunchbase, VentureBeat, Fortune, Inc., Axios) were removed: they're dominated
+# by AI/SaaS/fintech rounds that are off-ICP and now get filtered out anyway, so
+# polling them just wasted each run. FinSMEs covers broad early-stage funding
+# (incl. plenty of consumer deals) and the categorical CPG filter in BaseScraper
+# keeps only the relevant ones.
 FINSMES_FEEDS = [
     {
         "name": "FinSMEs — Funding News",
         "url": "https://www.finsmes.com/feed",
-    },
-    {
-        "name": "TechCrunch — Startups",
-        "url": "https://techcrunch.com/category/startups/feed/",
-    },
-    {
-        "name": "Crunchbase News",
-        "url": "https://news.crunchbase.com/feed/",
-    },
-    {
-        "name": "VentureBeat",
-        "url": "https://venturebeat.com/feed/",
-    },
-    {
-        "name": "Fortune — Entrepreneurship",
-        "url": "https://fortune.com/section/entrepreneurship/feed/",
-    },
-    {
-        "name": "Inc. — Startups & Funding",
-        "url": "https://www.inc.com/rss/",
-    },
-    {
-        "name": "Axios — Business",
-        "url": "https://api.axios.com/feed/",
     },
     {
         "name": "BevNET — Funding",
