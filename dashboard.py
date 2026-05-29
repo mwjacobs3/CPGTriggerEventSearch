@@ -323,6 +323,40 @@ def get_supabase_client():
     return create_client(url, key)
 
 
+def _supabase_url() -> str | None:
+    """The SUPABASE_URL the dashboard is actually connecting to — used in
+    diagnostics so a project/credentials mismatch is obvious."""
+    return (
+        st.secrets.get("SUPABASE_URL")
+        if hasattr(st, "secrets") and "SUPABASE_URL" in st.secrets
+        else os.environ.get("SUPABASE_URL")
+    )
+
+
+def _events_overview() -> dict:
+    """Total event count + latest discovered_at, ignoring any date window.
+    Distinguishes 'connected to an empty/stale project' from 'no rows in the
+    selected time range'."""
+    client = get_supabase_client()
+    if not client:
+        return {"total": 0, "latest": None}
+    try:
+        count_resp = (
+            client.table("events").select("id", count="exact").limit(1).execute()
+        )
+        latest_resp = (
+            client.table("events")
+            .select("discovered_at")
+            .order("discovered_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest = latest_resp.data[0]["discovered_at"] if latest_resp.data else None
+        return {"total": count_resp.count or 0, "latest": latest}
+    except Exception:
+        return {"total": 0, "latest": None}
+
+
 @st.cache_data(ttl=300, show_spinner="Loading leads from Supabase…")
 def _fetch_events(days: int) -> pd.DataFrame:
     """Fetch raw events from Supabase. Cached for 5 minutes to avoid
@@ -903,7 +937,25 @@ def main() -> None:
     df = load_events(days=days, search=search or None)
 
     if df.empty:
-        st.info("📭 No events found. Run the scraper to populate data.")
+        # Distinguish "wrong/empty project" from "no rows in this time window"
+        # so a Supabase project/credentials mismatch isn't mistaken for no data.
+        overview = _events_overview()
+        host = (_supabase_url() or "").replace("https://", "").rstrip("/")
+        if overview["total"] == 0:
+            st.warning(
+                f"📭 Connected to Supabase project **{host or 'unknown'}**, "
+                "but it has **0 events**. The scraper is likely writing to a "
+                "*different* Supabase project than this dashboard reads from. "
+                "Point the dashboard's `SUPABASE_URL` / `SUPABASE_KEY` secrets "
+                "at the same project the scraper/email alerts use, then refresh."
+            )
+        else:
+            st.info(
+                f"📭 No events in the last **{days} days**, but this project "
+                f"(**{host or 'unknown'}**) has **{overview['total']}** events "
+                f"total (latest: {overview['latest']}). Widen the *Time Range* "
+                "slider, or check that the scraper is still running."
+            )
         return
 
     # Region filter — DOSS prioritizes US leads but keeps international visible.
