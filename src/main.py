@@ -59,6 +59,10 @@ class TriggerEventMonitor:
         print(f"  CPG Trigger Event Search — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*60}")
 
+        # Fail-fast guard: if the events table is missing a column the scraper
+        # writes, every save silently fails. Surface it before wasting a run.
+        self.db.verify_schema()
+
         max_age_hours = self.config.get("scraper", {}).get("max_age_hours", 0)
         cutoff = (
             datetime.utcnow() - timedelta(hours=max_age_hours)
