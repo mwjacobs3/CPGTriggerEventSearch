@@ -291,6 +291,15 @@ keywords:
 # ── RSS feed sources ──────────────────────────────────────────────────────────
 # Add / remove feeds here. event_types is informational only (for logging).
 rss_feeds:
+  # ── Startup CPG Newswire — emerging-brand press releases (perfect DOSS ICP) ──
+  # Mid-market / early CPG brands announcing launches, retail wins, funding, and
+  # exec hires. Category is intentionally generic so per-article keyword
+  # classification picks the industry (food, beauty, pet, etc.).
+  - name: "Startup CPG Newswire"
+    url: "https://startupcpg.com/category/newswire/feed/"
+    event_types: ["product_launch", "funding", "retail_expansion", "exec_hire"]
+    category: "Consumer Goods"
+
   # ── Food & Beverage ───────────────────────────────────────────────────────────
   - name: "Food Dive"
     url: "https://www.fooddive.com/feeds/news/"
