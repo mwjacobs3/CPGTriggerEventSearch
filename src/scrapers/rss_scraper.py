@@ -62,7 +62,7 @@ class RSSScraper(BaseScraper):
                 return [], "error"
 
             events: list[TriggerEvent] = []
-            for entry in feed.entries[:20]:
+            for entry in feed.entries[:50]:
                 title = entry.get("title", "")
                 link = entry.get("link", "")
                 if not title or not link:
