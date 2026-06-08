@@ -158,10 +158,16 @@ TARGET_SIZE_SIGNALS = [
 # priority DOSS ICP (US-based supply chain / 3PL footprint), but an
 # international brand entering US retail or raising from US funds is still
 # a valid lead — it gets tagged "International" and scored lower.
+# Canada is in the DOSS ICP (US/Canada). Treat it like US territory.
+CANADA_SIGNALS = [
+    " canada", "canadian", "toronto", "vancouver", "montreal",
+    "calgary", "edmonton", "ottawa", "winnipeg", "quebec",
+    "british columbia", "ontario", "alberta",
+]
+
 INTERNATIONAL_SIGNALS = [
     "united kingdom", " uk ", " u.k.", "britain", "british", "london",
     "australia", "australian", "sydney", "melbourne",
-    " canada", "canadian", "toronto", "vancouver", "montreal",
     "india", "indian", "mumbai", "bangalore", "delhi",
     "germany", "german", "berlin", "munich",
     "france", "french", "paris",
@@ -418,6 +424,80 @@ CO_MAN_PROVIDERS = [
 
 # Combined for backwards compat — keep a single `_has_three_pl` check working.
 THREE_PL_KEYWORDS = THREE_PL_GENERIC_KEYWORDS + THREE_PL_PROVIDERS
+
+# ── Full ERP disqualifier ────────────────────────────────────────────────────
+# DOSS avoids companies that need full ERP migration. If an article describes
+# a company already running (or migrating to) these systems, it's a bad fit.
+FULL_ERP_SYSTEMS = [
+    "netsuite erp", "oracle netsuite", "migrating to netsuite", "on netsuite",
+    "implementing netsuite", "netsuite implementation",
+    "sage intacct", "intacct erp", "migrating to intacct",
+    "microsoft dynamics erp", "dynamics nav", "dynamics gp", "dynamics ax",
+    "epicor erp", "epicor kinetic", "migrating to epicor",
+    "acumatica erp", "implementing acumatica",
+    "sap erp", "sap s/4", "sap hana", "migrating to sap",
+    "infor erp", "infor cloudsuite",
+    "ifs erp", "syspro erp", "macola erp",
+]
+
+# Phrases that indicate a company is replacing/escaping a broken stack —
+# exactly the DOSS ICP sweet spot (QuickBooks + spreadsheets failing).
+BROKEN_STACK_SIGNALS = [
+    "outgrew quickbooks", "outgrowing quickbooks",
+    "replacing quickbooks", "graduated from quickbooks",
+    "quickbooks wasn't enough", "quickbooks can't handle",
+    "spreadsheet chaos", "spreadsheet nightmare", "drowning in spreadsheets",
+    "manual processes", "manual workflows", "manual data entry",
+    "disconnected systems", "fragmented systems", "siloed systems",
+    "duct-taped together", "cobbled together",
+    "scaling beyond spreadsheets", "beyond spreadsheets",
+    "replaced their spreadsheets", "ditched spreadsheets",
+    "broken systems", "failed implementation", "rip and replace",
+    "system overhaul", "tech stack overhaul",
+]
+
+# ── Disqualifying industries (ICP doc) ──────────────────────────────────────
+# Government, pharma/hospitals, real estate, restaurants, VC firms.
+# These may pass CPG keyword filters but are not DOSS targets.
+DISQUALIFYING_INDUSTRY_SIGNALS = [
+    # Government / public sector
+    "government contract", "federal agency", "department of defense",
+    "government procurement", "public sector", "municipal", "city government",
+    "state government", "government agency",
+    # Pharma / hospitals (distinct from consumer supplements/beauty)
+    "hospital system", "health system", "hospital network", "hospital chain",
+    "pharmaceutical company", "pharma company", "drug company",
+    "clinical stage", "fda approval", "fda clearance",
+    "prescription drug", "rx drug", "medical center", "health care system",
+    # Real estate
+    "real estate developer", "real estate company", "property developer",
+    "reit ", "real estate investment trust", "commercial real estate",
+    "residential real estate", "homebuilder",
+    # Restaurants / foodservice (restaurant chains, not CPG food brands)
+    "restaurant chain", "restaurant group", "restaurant franchise",
+    "fast food chain", "casual dining", "quick service restaurant",
+    "foodservice company", "food service operator",
+    # VC / PE firms (the investors, not the brands they fund)
+    "venture capital firm", "venture capital fund", "vc firm",
+    "private equity firm", "private equity fund", "pe firm",
+    "investment firm raises", "fund closes", "fund raises",
+]
+
+# ── In-house manufacturing disqualifier ─────────────────────────────────────
+# DOSS focuses on brands that outsource production. Heavy in-house
+# manufacturing/warehousing without outsourcing is a weak fit right now.
+IN_HOUSE_MANUFACTURING_SIGNALS = [
+    "company-owned manufacturing", "company owned manufacturing",
+    "owned manufacturing facility", "owns its manufacturing",
+    "in-house manufacturing", "in-house production",
+    "builds its own", "manufactures in-house",
+    "proprietary manufacturing", "vertically integrated manufacturer",
+    "owns its own factory", "company-owned factory", "company owned factory",
+    "owns its plant", "company-owned plant",
+    "owns its warehouse", "company-owned warehouse",
+    "in-house fulfillment", "self-fulfillment operation",
+    "operates its own distribution center",
+]
 
 # ── DOSS integration partners ────────────────────────────────────────────────
 # Curated from doss.com/integrations + the categories DOSS plugs into. A brand
@@ -730,6 +810,12 @@ class BaseScraper(ABC):
         integration_match  = self._extract_doss_integrations(combined)
         channel_mix        = self._detect_channel_mix(combined)
 
+        # ICP disqualifier signals
+        has_full_erp       = self._has_full_erp(combined)
+        has_broken_stack   = self._has_broken_stack(combined)
+        has_disq_industry  = self._has_disqualifying_industry(combined)
+        has_inhouse_mfg    = self._has_inhouse_manufacturing(combined) and not (three_pl or co_man)
+
         score = self._relevance_score(
             combined, event_type, keywords_hit, is_us,
             ops_pain=ops_pain, three_pl=three_pl,
@@ -738,6 +824,10 @@ class BaseScraper(ABC):
             retail_door_count=len(retail_doors),
             total_funding=total_funding,
             employee_count=employee_count,
+            has_full_erp=has_full_erp,
+            has_broken_stack=has_broken_stack,
+            has_disq_industry=has_disq_industry,
+            has_inhouse_mfg=has_inhouse_mfg,
         )
 
         from ..models import EventSource
@@ -857,6 +947,11 @@ class BaseScraper(ABC):
         # "Austin, TX" style city/state (use original case — regex requires caps)
         if US_CITY_STATE_REGEX.search(original_text):
             return True, "US"
+
+        # Canada — treat as in-ICP territory (same tier as US)
+        for sig in CANADA_SIGNALS:
+            if sig in padded:
+                return True, "Canada"
 
         # International signals
         for sig in INTERNATIONAL_SIGNALS:
@@ -982,6 +1077,10 @@ class BaseScraper(ABC):
         retail_door_count: int = 0,
         total_funding: Optional[str] = None,
         employee_count: Optional[str] = None,
+        has_full_erp: bool = False,
+        has_broken_stack: bool = False,
+        has_disq_industry: bool = False,
+        has_inhouse_mfg: bool = False,
     ) -> float:
         score = min(len(keywords_hit) * 15, 60)  # up to 60 from keyword hits
 
@@ -1060,6 +1159,20 @@ class BaseScraper(ABC):
                 score -= 20
             elif emp_count > self.employee_max:
                 score -= 5
+
+        # ── ICP disqualifier penalties ─────────────────────────────────────
+        # Full ERP already in place → DOSS doesn't do ERP migrations.
+        if has_full_erp:
+            score -= 30
+        # Broken/manual stack → the exact buyer DOSS is built for.
+        if has_broken_stack:
+            score += 18
+        # Disqualifying industry (govt, pharma, restaurants, VC, real estate).
+        if has_disq_industry:
+            score -= 35
+        # Heavy in-house manufacturing with no outsourcing → weak fit for now.
+        if has_inhouse_mfg:
+            score -= 20
 
         return min(max(score, 0), 100)
 
@@ -1281,6 +1394,18 @@ class BaseScraper(ABC):
         if has_retail:
             return "RETAIL"
         return None
+
+    def _has_full_erp(self, text: str) -> bool:
+        return any(kw in text for kw in FULL_ERP_SYSTEMS) if text else False
+
+    def _has_broken_stack(self, text: str) -> bool:
+        return any(kw in text for kw in BROKEN_STACK_SIGNALS) if text else False
+
+    def _has_disqualifying_industry(self, text: str) -> bool:
+        return any(kw in text for kw in DISQUALIFYING_INDUSTRY_SIGNALS) if text else False
+
+    def _has_inhouse_manufacturing(self, text: str) -> bool:
+        return any(kw in text for kw in IN_HOUSE_MANUFACTURING_SIGNALS) if text else False
 
     def _extract_founder(self, text: str) -> Optional[str]:
         """Find a founder name in the article (title + description).
