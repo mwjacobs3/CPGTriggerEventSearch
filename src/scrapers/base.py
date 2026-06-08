@@ -395,6 +395,16 @@ CO_MAN_GENERIC_KEYWORDS = [
     "outsourced manufacturing", "outsourced production",
     "third-party manufacturer", "third party manufacturer",
     "white label manufacturer", "white-label manufacturer",
+    # Beverage-specific co-man phrasing (rarely says "co-packer" in press)
+    "aseptic manufacturing", "aseptic production", "aseptic filling",
+    "beverage co-packing", "beverage contract", "beverage manufacturing partner",
+    "bottled by", "bottled at", "canned by", "canned at",
+    "brewed by", "brewed at", "produced by", "produced at",
+    "manufactured by", "manufactured at",
+    "production partner", "manufacturing partner",
+    "pack partner", "packing partner", "packaging partner",
+    "produced under license", "made under license",
+    "filled by", "filled at",
 ]
 
 # Named co-manufacturers / contract packagers commonly mentioned in CPG press.
