@@ -1,42 +1,120 @@
-# CPGTriggerEventSearch
+# DOSS Trigger Event Search
 
-Alert system that surfaces **CPG and consumer-products trigger events** so
-you can find accounts to reach out to and sell **DOSS**.
+An automated lead intelligence system built for the DOSS sales team. It continuously monitors the CPG market for companies that are the right size, in the right stage of growth, and showing the exact signals that indicate they need DOSS.
 
-Monitors three categories every 4 hours:
+Every 4 hours it scans trade press, funding wires, and Google News, scores each company against the DOSS ICP, and delivers a ranked digest to the team — so reps spend time selling, not researching.
 
-| 🚀 | **New CPG / Product Launches** — new brands, retail entries, DTC launches |
-| 💰 | **PE / VC Funding** — Series A/B/C, PE acquisitions, M&A in consumer goods |
-| 👤 | **Ops / Supply Chain Execs** — new VP/Director/C-Suite hires in supply chain, ops, procurement |
+---
 
-Results land in **Supabase**, email **digests ship every 4 hours**, and a
-**Streamlit dashboard** lets you triage leads (mark as Contacted, DOSS
-Customer, Out of Alignment, Not Relevant).
+## What it finds
 
-## Architecture
+| Signal | Why it matters for DOSS |
+|---|---|
+| 🚀 **Product launches & retail expansions** | A brand going to market or entering new retail channels is building operational complexity fast — exactly when they need DOSS |
+| 💰 **Funding rounds (Series A/B/C, PE)** | Fresh capital = budget to fix broken systems. These companies are actively evaluating tools |
+| 👤 **New ops & supply chain hires** | A new VP of Ops or COO is the #1 buyer at DOSS. They walk in the door wanting to make changes |
+
+---
+
+## DOSS ICP — who this targets
+
+The system is tuned to surface companies that match the DOSS best-fit profile:
+
+| Dimension | Target |
+|---|---|
+| **Revenue** | $10M – $200M |
+| **Employees** | 10 – 500 |
+| **Location** | US & Canada |
+| **Products** | Food & bev, beauty, supplements, home goods, pet, apparel, consumer electronics — anything with physical inventory |
+| **Manufacturing** | Uses co-manufacturers and/or 3PLs (outsourced) |
+| **Current systems** | QuickBooks + spreadsheets, or a broken/failed tool stack |
+
+### Scoring — what gets boosted
+
+Every lead gets a relevance score (0–100). The signals that push a company to the top:
+
+| Signal | Score bonus |
+|---|---|
+| Ops pain language ("fulfillment challenges", "inventory visibility", "outgrowing systems") | +15 |
+| 3PL mention (ShipBob, ShipMonk, Stord, Saddle Creek, Flowspace, DHL Supply Chain, …) | +10 |
+| Co-manufacturer / co-packer mention (Refresco, Power Brands, Nellson, Pharmavite, KDC/One, …) | +12 |
+| Launch + outsourced ops (the DOSS sweet spot) | +15 stacked bonus |
+| Broken/manual stack ("outgrew QuickBooks", "spreadsheet chaos", "manual processes") | +18 |
+| DOSS-integrated tools in their stack (Shopify, QuickBooks, SPS Commerce, Faire, …) | +5 per hit |
+| US or Canada company | +15 |
+| Funding in $5M–$500M range | +15 |
+| 10–500 employees | +10 |
+
+### Scoring — what gets penalized or removed
+
+| Signal | Score penalty |
+|---|---|
+| Full ERP already in place (NetSuite, Intacct, Epicor, Acumatica, SAP) | −30 |
+| Disqualifying industry (government, pharma/hospitals, real estate, restaurant chains, VC firms) | −35 |
+| Heavy in-house manufacturing with no outsourcing | −20 |
+| International company (outside US/Canada) | −25 |
+| Funding > $500M | −30 |
+| Publicly traded / Fortune 500 | Removed entirely |
+| Mega CPG (Nestlé, Unilever, P&G, Coca-Cola, PepsiCo, …) | Removed entirely |
+
+---
+
+## How it works
 
 ```
 ┌────────────────────────┐                 ┌──────────────────────────────┐
-│  GitHub Actions cron   │──┐              │       src.main               │
-│  0 */4 * * *           │  │              │   ┌────────────────────┐     │
-└────────────────────────┘  │              │   │ GoogleNewsScraper  │──┐  │
-                            ├─────────────▶│   │ RSSFeedScraper     │  │  │
-┌────────────────────────┐  │              │   │ FinSMEsScraper     │──┼──┼──▶ Supabase
-│  Local CLI             │──┘              │   │ JobScraper         │  │  │    ├─ events
-│  python -m src.main    │                 │   └────────────────────┘  │  │    └─ source_status
-└────────────────────────┘                 │            │              │  │
-                                           │   ICP filter + dedupe ◀───┘  │
+│  GitHub Actions cron   │──┐              │         Scrapers             │
+│  Every 4 hours         │  │              │   ┌────────────────────┐     │
+└────────────────────────┘  ├─────────────▶│   │ Google News (~100  │──┐  │
+                            │              │   │   targeted queries)│  │  │
+┌────────────────────────┐  │              │   │ Trade Press RSS    │──┼──┼──▶ Supabase
+│  Manual trigger        │──┘              │   │   (37 CPG feeds)   │  │  │    ├─ events
+│  (Actions → Run)       │                 │   │ Funding Wires      │──┤  │    └─ source_status
+└────────────────────────┘                 │   │ Exec Hire Wires    │  │  │
+                                           │   └────────────────────┘  │  │
+                                           │   ICP score + dedupe ◀────┘  │
                                            └────────────┬─────────────────┘
                                                         │
                                        ┌────────────────┴─────────────────┐
                                        ▼                                  ▼
                                ┌──────────────┐                  ┌────────────────┐
-                               │ src.alerts   │                  │  dashboard.py  │
-                               │ email digest │                  │  (Streamlit)   │
+                               │  Email digest│                  │  Dashboard     │
+                               │  every 4 hrs │                  │  (Streamlit)   │
                                └──────────────┘                  └────────────────┘
 ```
 
-## Quick start
+**Four scrapers run every cycle:**
+1. **37 trade-press RSS feeds** — Food Dive, BevNET, Beauty Independent, Grocery Dive, Modern Retail, Progressive Grocer, BusinessWire, PR Newswire, GlobeNewswire, and more
+2. **~100 Google News queries** — parameterized by event type (launch, funding, retail expansion, exec hire) and vertical (food & bev, beauty, supplements, home goods, pet, apparel, consumer electronics)
+3. **Funding wires** — FinSMEs, TechCrunch, Crunchbase News, Axios, VentureBeat, Inc., BevNET Funding
+4. **Exec appointment press wires** — BusinessWire and PR Newswire filtered for VP/Director/C-Suite ops and supply chain titles
+
+Each article is parsed for company name, founder, location, funding, employee count, tech stack, retail doors, and DOSS fit signals (3PL, co-man, ops pain). A best-effort homepage fetch fingerprints the brand's actual tech stack (Shopify CDN, BigCommerce tags, Klaviyo/Yotpo/Recharge scripts) to fill gaps that press copy misses.
+
+---
+
+## The dashboard
+
+The Streamlit dashboard is where reps triage leads. Leads are sorted by priority: NEW first, then US/Canada above international, then by relevance score.
+
+Each lead card shows:
+- Company name, location, founder name
+- Funding round and amount, employee count, founding year
+- DOSS fit badges: ops pain, 3PL, co-man, channel mix (DTC / Retail / DTC+Retail)
+- Retail doors (Whole Foods, Target, Costco, etc.)
+- Company website, LinkedIn, source article
+
+**Mark each lead as:**
+- 📞 **Contacted** — outreach sent
+- 💼 **DOSS Customer** — already closed
+- ❌ **Out of Alignment** — not a fit
+- 🚫 **Not Relevant** — noise
+
+Sidebar filters let you slice by event type, industry, lead status, and supply-chain signals (ops pain only, 3PL only, co-man only, DOSS-integrated stack, channel mix).
+
+---
+
+## Setup
 
 ### 1. Clone and install
 
@@ -50,30 +128,22 @@ cp .env.example .env
 ### 2. Set up Supabase
 
 1. Create a project at [app.supabase.com](https://app.supabase.com).
-2. SQL Editor → paste [`supabase/schema.sql`](supabase/schema.sql) → Run. This one
-   file is the **complete, idempotent schema** (the union of every migration in
-   `supabase/migrations/`). Run it on a new *or* existing project to bring it
-   fully up to date — it only adds what's missing and never drops data.
-   > ⚠️ Don't stop at `001_init.sql`. The scraper writes ~40 columns added across
-   > migrations `002`–`008`; if even one is missing, **every insert fails
-   > silently** and the table stops growing. `schema.sql` exists so this can't
-   > happen. (The scraper also self-checks on startup via `verify_schema()`.)
-3. Grab the project URL, the **anon key** (dashboard), and the **service_role key** (scraper).
-4. Fill them into `.env`. The dashboard's `SUPABASE_URL`/`SUPABASE_KEY` **must
-   point at the same project** as the scraper's `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`.
+2. SQL Editor → paste [`supabase/schema.sql`](supabase/schema.sql) → Run.
+3. Grab the project URL, **anon key** (for the dashboard), and **service_role key** (for the scraper).
+4. Fill them into `.env`.
 
 ### 3. Run locally
 
 ```bash
-cp config.example.yaml config.yaml   # customize ICP filters / queries if desired
-python -m src.main                    # one-shot scrape
-python -m src.main --daemon           # runs on the interval in config.yaml
-streamlit run dashboard.py            # open the triage UI
+cp config.example.yaml config.yaml
+python -m src.main          # one-shot scrape
+python -m src.main --daemon # runs on the configured interval
+streamlit run dashboard.py  # open the triage dashboard
 ```
 
-### 4. Deploy the 4-hour cron to GitHub Actions
+### 4. GitHub Actions (4-hour cron)
 
-In your repo **Settings → Secrets and variables → Actions** add:
+In **Settings → Secrets and variables → Actions**, add:
 
 | Secret | Required | Description |
 |---|---|---|
@@ -84,212 +154,44 @@ In your repo **Settings → Secrets and variables → Actions** add:
 | `EMAIL_RECIPIENTS` | ✅ | Comma-separated addresses |
 | `SMTP_HOST` | ⬜ | Defaults to `smtp.gmail.com` |
 | `SMTP_PORT` | ⬜ | Defaults to `587` |
-| `NEWS_API_KEY` | ⬜ | [newsapi.org](https://newsapi.org) — broader coverage |
-| `SERP_API_KEY` | ⬜ | [serpapi.com](https://serpapi.com) |
-| `ANTHROPIC_API_KEY` | ⬜ | Enables Claude relevance scoring |
 
-The `.github/workflows/scraper.yml` workflow runs on cron `0 */4 * * *`
-(every 4 hours) and on-demand via **Actions → CPG Trigger Event Scraper → Run workflow**.
+The workflow runs automatically every 4 hours and can be triggered manually via **Actions → CPG Trigger Event Scraper → Run workflow**.
 
-### 5. Deploy the dashboard to Streamlit Cloud
+### 5. Streamlit Cloud (dashboard)
 
 1. Go to [share.streamlit.io](https://share.streamlit.io) and connect this repo.
 2. Main file: `dashboard.py`. Python version is pinned to 3.11 via `runtime.txt`.
-3. Under **Advanced settings → Secrets**, paste (use the **anon key**, not service_role):
+3. Under **Advanced settings → Secrets**:
    ```toml
    SUPABASE_URL = "https://your-project.supabase.co"
    SUPABASE_KEY = "your-anon-key"
    ```
-4. Deploy. Theme + server settings are pre-configured in `.streamlit/config.toml`.
+
+---
 
 ## Repository layout
 
 ```
 CPGTriggerEventSearch/
 ├── dashboard.py                     # Streamlit triage UI
-├── main.py                          # thin shim → src.main
-├── config.example.yaml              # scraper config template (ICP, queries, filters)
+├── main.py                          # entry point → src.main
+├── config.example.yaml              # ICP filters, queries, scheduling
 ├── requirements.txt
-├── runtime.txt                      # Python 3.11 pin for Streamlit Cloud
-├── .env.example
-├── .streamlit/config.toml           # dashboard theme + server settings
+├── runtime.txt                      # Python 3.11 (Streamlit Cloud)
+├── .streamlit/config.toml           # dashboard theme
 ├── .github/workflows/scraper.yml    # cron: every 4 hours
 ├── supabase/
-│   ├── schema.sql                  # ⭐ COMPLETE idempotent schema — run this one
-│   └── migrations/
-│       ├── 001_init.sql                # events + source_status + RLS
-│       ├── 002_add_event_columns.sql   # exec hire + funding detail fields
-│       ├── 003_priority_index.sql      # status/score index for DOSS triage
-│       ├── 004_add_industry_column.sql # ICP industry slice
-│       ├── 005_add_country_and_founder.sql # US/Intl tag + founder_name
-│       ├── 006_outreach_and_fit_signals.sql # website/LI/HQ/founding_year/ops_pain/tech_stack/channel_mix
-│       ├── 007_add_user_industry.sql      # per-lead sales-applied industry tag
-│       └── 008_co_man_and_integrations.sql # co_man_mention + integration_match
+│   ├── schema.sql                   # complete idempotent schema — run this
+│   └── migrations/                  # individual migration history
 └── src/
-    ├── main.py                      # orchestrator + scheduler + Supabase sync
+    ├── main.py                      # orchestrator + Supabase sync
     ├── models.py                    # TriggerEvent dataclass
-    ├── database.py                  # Supabase client + upserts
-    ├── alerts.py                    # HTML + plain-text email digest
-    ├── enrichment.py                # website + BuiltWith tech-stack enrichment
+    ├── database.py                  # Supabase client
+    ├── alerts.py                    # email digest
+    ├── enrichment.py                # tech-stack fingerprinting
     └── scrapers/
-        ├── base.py                  # shared scraper helpers
-        ├── rss_scraper.py           # Google News RSS (no API key)
-        ├── news_scraper.py          # NewsAPI
-        ├── finsmes_scraper.py       # FinSMEs funding feed
-        └── job_scraper.py           # LinkedIn / job board scraping
+        ├── base.py                  # ICP filters, scoring, extraction logic
+        ├── rss_scraper.py           # Google News + trade press RSS
+        ├── finsmes_scraper.py       # funding wires
+        └── job_scraper.py           # exec hire press wires
 ```
-
-## Customizing the search
-
-All queries, ICP filters, excluded companies/locations, and scheduling live in
-[`config.example.yaml`](config.example.yaml) — copy it to `config.yaml` and edit:
-
-```yaml
-queries:
-  product_launch: [...]
-  funding:        [...]
-  exec_hire:      [...]
-```
-
-Edit, commit, push — the next cron run picks them up. Every query is expanded
-to a Google News RSS feed (zero API keys needed) and, if configured, NewsAPI.
-
-## Sources monitored
-
-Every 4-hour run pulls from **four** scrapers. All sources are filtered by the
-DOSS ICP rules in `config.yaml` (mid-market, excludes public mega-caps). Region
-is **tagged, not filtered** — US companies are flagged 🇺🇸 and boosted in the
-relevance score, while international leads are kept visible (but scored lower)
-so an EU or Canadian brand entering US retail still surfaces. Founders are
-auto-extracted from article copy (“founded by …”, “Co-Founder & CEO X”) so the
-lead card points straight at the decision-maker to reach out to.
-
-### Per-lead enrichment (migration 006)
-
-Each event is parsed on three axes so sales can qualify before clicking through:
-
-| Axis | Fields |
-|---|---|
-| **Outreach** | `company_website` · `company_linkedin` · `founder_linkedin` · `hq_city` · `hq_state` |
-| **Viability** | `founding_year` · `employee_count` · `total_funding` (cumulative raised) · `retail_doors` (distinct major chains mentioned) · `sku_count` |
-| **DOSS fit** | `ops_pain_signal` · `three_pl_mention` · `co_man_mention` · `integration_match` · `tech_stack` · `channel_mix` (DTC · DTC+Retail · Retail) |
-
-The DOSS fit signals split into four orthogonal axes — a brand that
-outsources both production AND fulfillment AND already runs on a
-DOSS-integrated stack is the textbook ICP:
-
-| Signal | Detects | Score bonus |
-|---|---|---|
-| `ops_pain_signal` | Fulfillment / inventory / supply-chain pain language | +15 |
-| `three_pl_mention` | Generic 3PL phrasing OR named 3PLs (ShipBob, ShipMonk, Stord, Saddle Creek, NFI, Radial, Quiet Logistics, Ryder, DHL Supply Chain, Flowspace, …) | +10 |
-| `co_man_mention` | "co-manufacturer", "co-packer", "contract packager", "tolling partner", "private label manufacturer", OR named co-mans (Refresco, Power Brands, Nellson, Pharmavite, Niagara Bottling, KDC/One, …) | +12 |
-| `integration_match` | Brand mentions a tool DOSS already integrates with — Shopify, NetSuite, SAP Business One, Acumatica, Sage Intacct, QuickBooks, BigCommerce, Cin7, Skubana, Extensiv, Brightpearl, ShipBob/ShipMonk/Flowspace/Stord, ShipStation, EasyPost, SPS Commerce, TrueCommerce, Faire, Gmail, … | +5 per hit (cap +15) |
-
-Each major retailer mentioned in a retail-expansion article adds +8 (capped).
-The dashboard sidebar has a **Supply-Chain Signals** section with checkboxes
-to show only ops-pain, only 3PL, only co-man, or only DOSS-integrated-stack
-leads, plus a channel-mix multiselect.
-
-### Website-stack enrichment (best-effort, no API key needed)
-
-Press copy rarely names a brand's 3PL or e-commerce stack, but the brand's
-own website almost always exposes it (Shopify CDN, BigCommerce meta tag,
-Klaviyo / Yotpo / Recharge / Gorgias scripts). After scraping + dedup, each
-lead's `company_website` is fetched once and the homepage HTML is
-fingerprinted for those tells. Hits are merged into `tech_stack` and
-re-evaluated against the DOSS-integration list, so `integration_match`
-reflects the brand's actual stack rather than what made it into press copy.
-
-The whole step is wrapped in try/except — enrichment is strictly
-best-effort and never blocks event ingestion. Toggle in `config.yaml`:
-
-```yaml
-enrichment:
-  enabled: true
-  timeout_seconds: 6
-```
-
-### Lead quality controls
-
-Two knobs in `config.yaml` decide which leads survive each cycle:
-
-| Setting | Default | Purpose |
-|---|---|---|
-| `scraper.min_relevance_score` | `50` | Drops weak candidates *before* save. `0` keeps everything; raise to `60` for stricter pipelines. |
-| `scraper.max_age_hours` | `48` | Drops articles whose `published_date` is older than this. `0` disables (use only when seeding the DB). |
-
-Each run prints how many candidates were skipped on each gate, so you can
-re-tune from real numbers.
-
-### ICP size band ($5M–$500M revenue proxy)
-
-DOSS targets mid-market CPG. Press releases don't expose revenue, so the
-scraper uses **total funding raised** and **employee count** as proxies and
-folds them directly into the relevance score:
-
-| Signal | Bonus / penalty |
-|---|---|
-| Total funding parses to **$5M–$500M** | **+15** |
-| Total funding > **$500M** | **−30** |
-| Total funding > $0 but < $5M | **−5** |
-| Employee count in **10–1000** | **+10** |
-| Employee count > **2000** | **−20** |
-| Employee count 1000–2000 | **−5** |
-
-The band is tunable in `territory.company_filters.size_band` (funding
-min/max in USD, employee min/max/hard_max). Public mega-caps and
-Fortune-500 mentions are excluded outright before scoring.
-
-### 1. Trade-press RSS (`RSSFeedScraper`, 37 feeds from `config.yaml`)
-
-| Category | Feeds |
-|---|---|
-| **Food & Beverage** | Food Dive · Food Business News · FoodNavigator USA · Prepared Foods · Beverage Daily · BevNET · Candy Industry · Snack Food & Wholesale Bakery · Pet Food Industry |
-| **Retail / Grocery** | Grocery Dive · Progressive Grocer · Supermarket News · Retail Dive · Winsight Grocery Business · Convenience Store News · Chain Store Age |
-| **Health, Beauty & Wellness** | Beauty Independent · Drug Store News · CosmeticsDesign USA · Happi · Glossy · WWD Beauty · Natural Products Insider · Nutraceuticals World · Nutritional Outlook |
-| **DTC / Omnichannel** | Modern Retail · Retail Brew · Digiday Retail |
-| **Press Releases (broad)** | BusinessWire (Consumer Products / Food & Bev / Health & Wellness / Retail) · PR Newswire · GlobeNewswire Consumer · EIN Presswire Consumer Goods · AccessWire |
-
-### 2. Google News (`GoogleNewsScraper`, ~100 queries from `config.yaml`)
-
-Every query is expanded to a Google News RSS feed. Grouped by event type:
-
-- **Product Launch** — 25+ queries across Food & Beverage, Health & Beauty, Home & Household, DTC / General CPG
-- **Retail Expansion** — 20+ queries for DTC → retail (Whole Foods, Target, Walmart, Costco, Kroger, Sprouts, Publix, Ulta, Sephora, CVS, Walgreens, PetSmart, Petco) + distribution deals
-- **Funding** — 20+ queries for Series A/B, PE minority investments, seed rounds across F&B, Health & Beauty, Home, DTC
-- **Exec Hire** — 25+ queries for DOSS ICP roles: VP/SVP/Director/Head of Supply Chain, Operations, Procurement, Logistics, Fulfillment, COO, CSCO, **plus Founder / Co-Founder / Founder & CEO** at founder-led CPG brands (where the founder is the operational decision-maker)
-
-### 3. Funding-specific RSS (`FinSMEsScraper`, 9 feeds, hard-coded)
-
-FinSMEs · TechCrunch Startups · Crunchbase News · VentureBeat · Fortune Entrepreneurship · Inc. Startups & Funding · Axios Business · BevNET Funding · Beauty Independent Funding
-
-### 4. Exec-hire press wires (`JobScraper`, BusinessWire + PR Newswire)
-
-Monitors press-release wires for exec appointment announcements, then filters
-for the DOSS ICP:
-
-- **Ops / supply-chain leaders** — VP / SVP / EVP / Director / Head of
-  Supply Chain, Operations, Procurement, Logistics, Fulfillment
-- **C-suite** — COO, CSCO, Chief Operations / Supply Chain Officer
-- **Founder-led brands** — Founder, Co-Founder, Founder & CEO, President & CEO
-  (at sub-$50M CPG, the founder IS the ops buyer)
-
-Press-release wires are more reliable than scraping job boards (which block bots).
-
-## Lead triage workflow
-
-The dashboard shows `NEW` signals first. Mark each as:
-
-- 📞 **Contacted** — you've reached out
-- 💼 **DOSS Customer** — already a customer
-- ❌ **Out of Alignment** — not a DOSS fit
-- 🚫 **Not Relevant** — noise; deletes from DB
-
-Bulk actions are in the sidebar.
-
-## Background
-
-Repurposed from [TriggerEventSearch](https://github.com/mwjacobs3/TriggerEventSearch)
-(which targeted CFOs, finance hires, and PE funding). Same scaffolding —
-searchers, Supabase sync, Streamlit dashboard, 4-hour GitHub Actions cron —
-but every search query and event type is retargeted at CPG ops buyers.
