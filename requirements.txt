@@ -8,3 +8,4 @@ supabase==2.5.3
 streamlit==1.37.0
 anthropic==0.28.0
 schedule==1.2.2
+simple-salesforce==1.12.6

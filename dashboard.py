@@ -16,6 +16,11 @@ import pandas as pd
 import streamlit as st
 
 try:
+    from src import salesforce as sfdc
+except Exception:
+    sfdc = None
+
+try:
     from src.scrapers.base import INDUSTRY_LABELS
 except Exception:
     INDUSTRY_LABELS = {
@@ -163,6 +168,14 @@ st.markdown(
         font-size: 0.68rem; font-weight: 700; letter-spacing: 0.3px;
     }
     .source-top { background: #FCEFC7; color: #8A5A00; border: 1px solid #F0D27A; }
+
+    .sfdc-badge {
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .sfdc-customer { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; } /* live customer */
+    .sfdc-open     { background: #DBEAFE; color: #1E3A8A; border: 1px solid #BFDBFE; } /* open prospect */
+    .sfdc-dead     { background: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; } /* churned / closed lost */
 
     .enrich-panel {
         background: #FAFAF7; border: 1px solid var(--doss-border);
@@ -438,6 +451,60 @@ def load_events(days: int = 30, search: str | None = None) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _load_sfdc_matches(companies: tuple[tuple[str, str], ...]) -> dict:
+    """Cached SFDC cross-reference. Keyed on the (name, website) tuple so the
+    org is queried once per unique lead set, not on every filter/rerun."""
+    if sfdc is None:
+        return {}
+    return sfdc.lookup_accounts(companies)
+
+
+def annotate_sfdc(df: pd.DataFrame) -> pd.DataFrame:
+    """Add sfdc_* columns flagging which leads already exist as SFDC Accounts.
+
+    No-ops (leaves df untouched) when Salesforce isn't configured, so the
+    dashboard runs identically with or without SFDC credentials present.
+    """
+    if sfdc is None or df.empty:
+        return df
+
+    companies = tuple(
+        sorted(
+            {
+                (_safe_str(r.get("company_name")), _safe_str(r.get("company_website")))
+                for _, r in df[["company_name", "company_website"]].iterrows()
+            }
+        )
+    ) if "company_website" in df.columns else tuple(
+        sorted({(_safe_str(n), "") for n in df["company_name"].fillna("")})
+    )
+
+    matches = _load_sfdc_matches(companies)
+    if not matches:
+        return df
+
+    df = df.copy()
+
+    def _annotate(row):
+        m = sfdc.match_for(
+            matches,
+            _safe_str(row.get("company_name")),
+            _safe_str(row.get("company_website")),
+        )
+        if not m:
+            return pd.Series({"sfdc_in": False, "sfdc_type": "", "sfdc_status": "", "sfdc_owner": ""})
+        return pd.Series({
+            "sfdc_in": True,
+            "sfdc_type": m.get("type") or "",
+            "sfdc_status": m.get("status") or "",
+            "sfdc_owner": m.get("owner") or "",
+        })
+
+    df[["sfdc_in", "sfdc_type", "sfdc_status", "sfdc_owner"]] = df.apply(_annotate, axis=1)
+    return df
+
+
 def load_source_statuses() -> pd.DataFrame:
     client = get_supabase_client()
     if not client:
@@ -492,6 +559,35 @@ def _score_badge(score: float) -> str:
         s = 0
     cls = "score-hot" if s >= 75 else "score-warm" if s >= 50 else "score-cool"
     return f'<span class="score-badge {cls}">🎯 {int(s)}</span>'
+
+
+# Account_Status__c / Type values that mean a dead or non-workable account.
+_SFDC_DEAD_STATES = {"churned", "closed lost", "disqualified"}
+
+
+def _sfdc_badge(row) -> str:
+    """HTML badge flagging that a lead already exists as a Salesforce Account.
+
+    Returns "" when SFDC isn't configured or the company isn't matched. Colors:
+    green = live customer, gray = churned/closed-lost, blue = open prospect.
+    """
+    if not _safe_bool(row.get("sfdc_in")):
+        return ""
+    status = _safe_str(row.get("sfdc_status"))
+    acct_type = _safe_str(row.get("sfdc_type"))
+    owner = _safe_str(row.get("sfdc_owner"))
+
+    state = (status or acct_type).lower()
+    if "customer" in state or acct_type.lower() == "customer":
+        cls = "sfdc-customer"
+    elif any(d in state for d in _SFDC_DEAD_STATES):
+        cls = "sfdc-dead"
+    else:
+        cls = "sfdc-open"
+
+    label_bits = [b for b in (status or acct_type, owner) if b]
+    label = " · ".join(label_bits) if label_bits else "Account"
+    return f'<span class="sfdc-badge {cls}">📇 SFDC · {label}</span>'
 
 
 def render_metric_card(icon: str, value: int, label: str, color: str) -> None:
@@ -648,6 +744,9 @@ def render_event_card(row, event_config) -> None:
         if top_source_label else ""
     )
 
+    # SFDC cross-reference badge: is this company already a Salesforce Account?
+    sfdc_html = _sfdc_badge(row)
+
     # Region badge: 🇺🇸 US vs 🌍 International vs unknown
     if is_us is True:
         region_html = '<span class="region-badge region-us">🇺🇸 US</span>'
@@ -704,6 +803,7 @@ def render_event_card(row, event_config) -> None:
         f'<span class="event-type-badge {badge_class}">{event_config["icon"]} {event_config["label"]}</span>'
         f'<span class="status-badge {status_cfg["class"]}">{status_cfg["label"]}</span>'
         f'{region_html}'
+        f'{sfdc_html}'
         f'{top_source_html}'
         f'{industry_html}'
         f'{user_industry_html}'
@@ -998,6 +1098,10 @@ def main() -> None:
             )
         return
 
+    # Cross-reference against Salesforce (no-op when SFDC isn't configured) so
+    # cards/table can flag leads that already exist as Accounts.
+    df = annotate_sfdc(df)
+
     # Region filter — DOSS prioritizes US leads but keeps international visible.
     if "is_us_company" in df.columns:
         st.sidebar.markdown("### Region")
@@ -1287,7 +1391,9 @@ def main() -> None:
             "founding_year", "total_funding", "channel_mix", "ops_pain_signal",
             "three_pl_mention", "co_man_mention", "integration_match",
             "retail_doors", "tech_stack",
-            "company_website", "title", "source_name", "published_date", "lead_status",
+            "company_website", "title", "source_name",
+            "sfdc_in", "sfdc_status", "sfdc_owner",
+            "published_date", "lead_status",
         ]
         available = [c for c in cols if c in df.columns]
         display = df[available].copy()
@@ -1312,6 +1418,9 @@ def main() -> None:
             "company_website": "Website",
             "title": "Title",
             "source_name": "Source",
+            "sfdc_in": "In SFDC",
+            "sfdc_status": "SFDC Status",
+            "sfdc_owner": "SFDC Owner",
             "published_date": "Published",
             "lead_status": "Status",
         }
@@ -1324,6 +1433,10 @@ def main() -> None:
             # Star-flag news from our top CPG trade pubs so they sort/scan to the top.
             display["Source"] = display["Source"].map(
                 lambda s: f"⭐ {s}" if _top_source_label(_safe_str(s)) else _safe_str(s)
+            )
+        if "In SFDC" in display.columns:
+            display["In SFDC"] = display["In SFDC"].map(
+                lambda v: "✅" if _safe_bool(v) else ""
             )
         st.dataframe(display, use_container_width=True, hide_index=True)
 

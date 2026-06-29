@@ -102,6 +102,21 @@ The `.github/workflows/scraper.yml` workflow runs on cron `0 */4 * * *`
    ```
 4. Deploy. Theme + server settings are pre-configured in `.streamlit/config.toml`.
 
+#### Optional: Salesforce cross-reference
+
+Add the secrets below to make each lead card show an **📇 In SFDC** badge
+(green = customer, blue = open prospect, gray = churned/closed-lost) plus the
+account owner, so reps instantly see which leads are already accounts. Matching
+is read-only and keys on website domain first, then company name. If these are
+omitted the dashboard runs exactly as before — the badge is simply hidden.
+
+```toml
+SFDC_USERNAME = "you@doss.com"
+SFDC_PASSWORD = "your-password"
+SFDC_SECURITY_TOKEN = "your-security-token"   # Setup → My Personal Information → Reset Security Token
+SFDC_DOMAIN = "login"                          # "login" for prod, "test" for a sandbox
+```
+
 ## Repository layout
 
 ```
