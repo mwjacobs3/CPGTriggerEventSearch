@@ -158,6 +158,12 @@ st.markdown(
     .fit-integration { background: #D1FAE5; color: #065F46; }/* DOSS-integrated stack */
     .fit-channel { background: #F3F1EC; color: var(--doss-ink-2); border: 1px solid var(--doss-border); }
 
+    .source-badge {
+        padding: 0.22rem 0.55rem; border-radius: 6px;
+        font-size: 0.68rem; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .source-top { background: #FCEFC7; color: #8A5A00; border: 1px solid #F0D27A; }
+
     .enrich-panel {
         background: #FAFAF7; border: 1px solid var(--doss-border);
         border-radius: 8px; padding: 0.9rem 1.1rem; margin-top: 0.6rem;
@@ -296,6 +302,32 @@ USER_INDUSTRY_OPTIONS = [
     "Manufacturing",
     "Distribution",
 ]
+
+
+# ── Top / priority news sources ───────────────────────────────────────────────
+# Trade pubs that are the strongest early signal for emerging CPG brands. A hit
+# here earns a distinctive badge so sales can spot high-trust leads at a glance.
+# Keys are matched case-insensitively as substrings of the event's source_name,
+# so "startup cpg" matches the "Startup CPG Newswire" feed and "bevnet" matches
+# "BevNET" regardless of any feed-name suffix.
+TOP_SOURCES = {
+    "nosh": "NOSH",
+    "startup cpg": "Startup CPG",
+    "bevnet": "BevNET",
+    "agfunder": "AgFunderNews",
+    "beauty independent": "Beauty Independent",
+}
+
+
+def _top_source_label(source_name: str) -> str | None:
+    """Return the canonical display label if source_name is a top source, else None."""
+    if not source_name:
+        return None
+    sl = source_name.lower()
+    for key, label in TOP_SOURCES.items():
+        if key in sl:
+            return label
+    return None
 
 
 @st.cache_resource
@@ -609,6 +641,13 @@ def render_event_card(row, event_config) -> None:
         if user_industry else ""
     )
 
+    # Top-source badge: flags news from our highest-trust CPG trade pubs.
+    top_source_label = _top_source_label(_safe_str(row.get("source_name")))
+    top_source_html = (
+        f'<span class="source-badge source-top">⭐ {top_source_label}</span>'
+        if top_source_label else ""
+    )
+
     # Region badge: 🇺🇸 US vs 🌍 International vs unknown
     if is_us is True:
         region_html = '<span class="region-badge region-us">🇺🇸 US</span>'
@@ -665,6 +704,7 @@ def render_event_card(row, event_config) -> None:
         f'<span class="event-type-badge {badge_class}">{event_config["icon"]} {event_config["label"]}</span>'
         f'<span class="status-badge {status_cfg["class"]}">{status_cfg["label"]}</span>'
         f'{region_html}'
+        f'{top_source_html}'
         f'{industry_html}'
         f'{user_industry_html}'
         f'{score_badge_html}'
@@ -1247,7 +1287,7 @@ def main() -> None:
             "founding_year", "total_funding", "channel_mix", "ops_pain_signal",
             "three_pl_mention", "co_man_mention", "integration_match",
             "retail_doors", "tech_stack",
-            "company_website", "title", "published_date", "lead_status",
+            "company_website", "title", "source_name", "published_date", "lead_status",
         ]
         available = [c for c in cols if c in df.columns]
         display = df[available].copy()
@@ -1271,6 +1311,7 @@ def main() -> None:
             "tech_stack": "Tech Stack",
             "company_website": "Website",
             "title": "Title",
+            "source_name": "Source",
             "published_date": "Published",
             "lead_status": "Status",
         }
@@ -1278,6 +1319,11 @@ def main() -> None:
         if "Industry (auto)" in display.columns:
             display["Industry (auto)"] = display["Industry (auto)"].map(
                 lambda k: INDUSTRY_LABELS.get(k, "") if k else ""
+            )
+        if "Source" in display.columns:
+            # Star-flag news from our top CPG trade pubs so they sort/scan to the top.
+            display["Source"] = display["Source"].map(
+                lambda s: f"⭐ {s}" if _top_source_label(_safe_str(s)) else _safe_str(s)
             )
         st.dataframe(display, use_container_width=True, hide_index=True)
 
