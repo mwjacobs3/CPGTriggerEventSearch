@@ -23,8 +23,8 @@ Customer, Out of Alignment, Not Relevant).
                             ├─────────────▶│   │ RSSFeedScraper     │  │  │
 ┌────────────────────────┐  │              │   │ FinSMEsScraper     │──┼──┼──▶ Supabase
 │  Local CLI             │──┘              │   │ JobScraper         │  │  │    ├─ events
-│  python -m src.main    │                 │   └────────────────────┘  │  │    └─ source_status
-└────────────────────────┘                 │            │              │  │
+│  python -m src.main    │                 │   │ TwitterScraper     │──┘  │    └─ source_status
+└────────────────────────┘                 │   └────────────────────┘     │
                                            │   ICP filter + dedupe ◀───┘  │
                                            └────────────┬─────────────────┘
                                                         │
@@ -85,7 +85,7 @@ In your repo **Settings → Secrets and variables → Actions** add:
 | `SMTP_HOST` | ⬜ | Defaults to `smtp.gmail.com` |
 | `SMTP_PORT` | ⬜ | Defaults to `587` |
 | `NEWS_API_KEY` | ⬜ | [newsapi.org](https://newsapi.org) — broader coverage |
-| `SERP_API_KEY` | ⬜ | [serpapi.com](https://serpapi.com) |
+| `SERP_API_KEY` | ⬜ | [serpapi.com](https://serpapi.com) — powers `TwitterScraper` (Google search over `site:x.com`) |
 | `ANTHROPIC_API_KEY` | ⬜ | Enables Claude relevance scoring |
 
 The `.github/workflows/scraper.yml` workflow runs on cron `0 */4 * * *`
@@ -136,7 +136,8 @@ CPGTriggerEventSearch/
         ├── rss_scraper.py           # Google News RSS (no API key)
         ├── news_scraper.py          # NewsAPI
         ├── finsmes_scraper.py       # FinSMEs funding feed
-        └── job_scraper.py           # LinkedIn / job board scraping
+        ├── job_scraper.py           # LinkedIn / job board scraping
+        └── twitter_scraper.py       # X/Twitter posts via Google Search (SerpApi)
 ```
 
 ## Customizing the search
@@ -275,6 +276,28 @@ for the DOSS ICP:
   (at sub-$50M CPG, the founder IS the ops buyer)
 
 Press-release wires are more reliable than scraping job boards (which block bots).
+
+### 5. X / Twitter (`TwitterScraper`, via Google Search / SerpApi — requires `SERP_API_KEY`)
+
+X has no affordable public search API (the official tier that supports post
+search starts around $200/mo), and scraping x.com directly violates its ToS
+and gets accounts/IPs banned. Instead, `TwitterScraper` runs each query in
+`twitter_queries` (config.yaml) through SerpApi's Google search with a
+`site:x.com` filter — surfacing public posts Google has indexed, with no
+direct contact with X's servers at all.
+
+- **Product launch / funding / exec hire** — first-person founder/exec posts
+  ("we just launched…", "closed our Series A…", "excited to join as VP of
+  Supply Chain…")
+- **Ops pain** — founders venting about the exact problems DOSS solves
+  ("outgrew our 3PL", "spreadsheet nightmare", "switching from QuickBooks") —
+  these feed the `ops_pain_signal` / relevance-score boost rather than a
+  distinct event type
+
+Coverage is a fraction of what a real search API would return, since Google
+only indexes a slice of public X posts — this is a low-recall bonus signal,
+not a primary source. If `SERP_API_KEY` isn't set, this scraper is skipped
+(not an error).
 
 ## Lead triage workflow
 

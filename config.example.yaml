@@ -891,6 +891,57 @@ google_news_queries:
     - "B2B distribution platform launches"
     - "EDI platform CPG launches"
 
+# ── X / Twitter queries (via Google Search / SerpApi) ─────────────────────────
+# TwitterScraper prepends `site:x.com` to each query and runs it through
+# SerpApi's Google search engine — X has no affordable public search API, but
+# Google indexes a slice of public posts. Requires SERP_API_KEY; the scraper
+# is skipped entirely (not an error) if that key isn't set. Coverage is a
+# fraction of a real search API — X blocks most crawling — so treat this as a
+# bonus low-recall channel, not a primary source. Buckets with no matching
+# EventType (e.g. ops_pain) auto-classify off the post text, same as the
+# google_news_queries `supply_chain_footprint` / `integration_stack` buckets.
+twitter_queries:
+  # Founders/execs announcing a launch — same "launch + outsourced ops" combo
+  # that's the DOSS sweet spot in google_news_queries.
+  product_launch:
+    - '"excited to launch" CPG brand'
+    - '"we just launched" food beverage brand'
+    - '"launching our brand" DTC'
+    - '"our new brand" consumer packaged goods'
+    - '"just dropped" indie beauty brand'
+    - '"live on shelves" CPG brand'
+    - '"we launched with" co-packer OR "co-manufacturer"'
+
+  # Founders/execs announcing a raise — funding round + first person framing.
+  funding:
+    - '"we raised our seed round" CPG'
+    - '"closed our Series A" consumer brand'
+    - '"just raised" food beverage startup'
+    - '"proud to announce our funding" CPG'
+    - '"backed by" venture capital CPG brand'
+
+  # First-person hire announcements — "excited to join as VP Supply Chain".
+  exec_hire:
+    - '"excited to join" "VP of Supply Chain"'
+    - '"thrilled to join" "Head of Operations" CPG'
+    - '"joining as" "Director of Supply Chain"'
+    - '"new role" "VP Operations" consumer goods'
+    - '"welcome to the team" "Chief Operating Officer" CPG'
+
+  # Operational-pain posts — founders venting about the exact problems DOSS
+  # solves. No natural EventType, so these auto-classify off post text; the
+  # value is the `ops_pain_signal` / `broken_stack` boolean it feeds into
+  # `_relevance_score`, not the event_type label.
+  ops_pain:
+    - '"outgrew our 3PL" CPG brand'
+    - '"spreadsheet nightmare" inventory'
+    - '"switching from QuickBooks" CPG brand'
+    - '"manual inventory tracking" DTC brand'
+    - '"drowning in spreadsheets" operations'
+    - '"our ops can''t keep up" brand'
+    - '"looking for a WMS" CPG'
+    - '"outgrew our warehouse" consumer brand'
+
 # ── Website-stack enrichment ──────────────────────────────────────────────────
 # After dedup we fetch each lead's company website and inspect the homepage
 # HTML for tech-stack tells (Shopify CDN, BigCommerce meta tag, Klaviyo,

@@ -23,7 +23,13 @@ from .alerts import AlertManager
 from .database import SupabaseManager
 from .enrichment import enrich_event
 from .models import TriggerEvent
-from .scrapers import FinSMEsScraper, GoogleNewsScraper, JobScraper, RSSScraper
+from .scrapers import (
+    FinSMEsScraper,
+    GoogleNewsScraper,
+    JobScraper,
+    RSSScraper,
+    TwitterScraper,
+)
 
 
 class TriggerEventMonitor:
@@ -39,6 +45,7 @@ class TriggerEventMonitor:
             GoogleNewsScraper(self.config),
             JobScraper(self.config),
             FinSMEsScraper(self.config),
+            TwitterScraper(self.config),
         ]
 
     # ── Config ────────────────────────────────────────────────────────────────
