@@ -19,6 +19,7 @@ class EventSource(Enum):
     GOOGLE_NEWS  = "google_news"
     JOB_BOARD    = "job_board"   # Press-release-based exec hire detection
     FINSMES      = "finsmes"
+    TWITTER      = "twitter"     # X/Twitter posts surfaced via Google search (SerpApi)
     OTHER        = "other"
 
 
